@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#007AFF">
+    <title>Vazifalar - Liquid Glass</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #1d1d1f;
+        }
+        
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            border-radius: 20px;
+        }
+        
+        .glass-dark {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .animate-slide {
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Buttons */
+        .btn {
+            background: rgba(0, 122, 255, 0.9);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn:hover {
+            background: rgba(0, 122, 255, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 122, 255, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 20px rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-delete {
+            background: rgba(255, 59, 48, 0.9);
+        }
+        
+        .btn-delete:hover {
+            background: rgba(255, 59, 48, 1);
+            box-shadow: 0 8px 20px rgba(255, 59, 48, 0.4);
+        }
+        
+        /* Input */
+        input, select {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #1d1d1f;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        
+        input:focus, select:focus {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(0, 122, 255, 0.5);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+        }
+        
+        input::placeholder {
+            color: rgba(29, 29, 31, 0.5);
+        }
+        
+        /* Task Card */
+        .task-card {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: grab;
+        }
+        
+        .task-card:active {
+            cursor: grabbing;
+        }
+        
+        .task-card:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(8px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Status Colors */
+        .status-pending {
+            border-left: 4px solid rgba(0, 122, 255, 0.8);
+        }
+        
+        .status-progress {
+            border-left: 4px solid rgba(255, 204, 0, 0.8);
+        }
+        
+        .status-completed {
+            border-left: 4px solid rgba(52, 199, 89, 0.8);
+        }
+        
+        .status-blocked {
+            border-left: 4px solid rgba(255, 59, 48, 0.8);
+        }
+        
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+        
+        /* Stats */
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 4px;
+        }
+        
+        /* Progress Bar */
+        .progress-container {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            height: 12px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8) 0%, rgba(52, 199, 89, 0.8) 100%);
+            border-radius: 12px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 20px rgba(0, 122, 255, 0.5);
+        }
+        
+        /* Drag & Drop */
+        .drop-zone {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .drop-zone:hover {
+            border-color: rgba(0, 122, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .drop-zone.drag-over {
+            border-color: rgba(0, 122, 255, 0.8);
+            background: rgba(0, 122, 255, 0.1);
+            box-shadow: 0 0 30px rgba(0, 122, 255, 0.3);
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        /* Grid */
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+        
+        .grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        @media (max-width: 768px) {
+            .grid-2, .grid-4 {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Flex */
+        .flex {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+        
+        .flex-between {
+            justify-content: space-between;
+        }
+        
+        .flex-center {
+            align-items: center;
+        }
+        
+        /* Text */
+        .text-white {
+            color: white;
+        }
+        
+        .text-shadow {
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 42px;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+            margin-bottom: 8px;
+        }
+        
+        h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 16px;
+        }
+        
+        /* Utilities */
+        .mb-4 { margin-bottom: 16px; }
+        .mb-6 { margin-bottom: 24px; }
+        .mt-2 { margin-top: 8px; }
+        .w-full { width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        const STATUSES = {
+            PENDING: 'Kutilmoqda',
+            IN_PROGRESS: 'Jarayonda',
+            COMPLETED: 'Bajarildi',
+            BLOCKED: "To'silgan"
+        };
+        
+        const PRIORITIES = {
+            LOW: 'Past',
+            MEDIUM: "O'rta",
+            HIGH: 'Yuqori'
+        };
+        
+        function TaskMonitorGlass() {
+            const [tasks, setTasks] = useState([]);
+            const [newTaskTitle, setNewTaskTitle] = useState('');
+            const [newTaskDeadline, setNewTaskDeadline] = useState('');
+            const [newTaskPriority, setNewTaskPriority] = useState(PRIORITIES.MEDIUM);
+            const [filter, setFilter] = useState('Hammasi');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [draggedTask, setDraggedTask] = useState(null);
+            
+            useEffect(() => {
+                const savedTasks = localStorage.getItem('tasks-glass');
+                if (savedTasks) {
+                    setTasks(JSON.parse(savedTasks));
+                }
+            }, []);
+            
+            useEffect(() => {
+                localStorage.setItem('tasks-glass', JSON.stringify(tasks));
+            }, [tasks]);
+            
+            const addTask = () => {
+                if (newTaskTitle.trim()) {
+                    const newTask = {
+                        id: Date.now(),
+                        title: newTaskTitle,
+                        status: STATUSES.PENDING,
+                        priority: newTaskPriority,
+                        deadline: newTaskDeadline || null,
+                        createdAt: new Date().toISOString()
+                    };
+                    setTasks([...tasks, newTask]);
+                    setNewTaskTitle('');
+                    setNewTaskDeadline('');
+                    setNewTaskPriority(PRIORITIES.MEDIUM);
+                }
+            };
+            
+            const deleteTask = (id) => {
+                setTasks(tasks.filter(task => task.id !== id));
+            };
+            
+            const updateTaskStatus = (id, newStatus) => {
+                setTasks(tasks.map(task => 
+                    task.id === id ? { ...task, status: newStatus } : task
+                ));
+            };
+            
+            const handleDragStart = (e, task) => {
+                setDraggedTask(task);
+            };
+            
+            const handleDragOver = (e) => {
+                e.preventDefault();
+            };
+            
+            const handleDrop = (e, newStatus) => {
+                e.preventDefault();
+                if (draggedTask) {
+                    updateTaskStatus(draggedTask.id, newStatus);
+                    setDraggedTask(null);
+                }
+                e.currentTarget.classList.remove('drag-over');
+            };
+            
+            const handleDragEnter = (e) => {
+                e.currentTarget.classList.add('drag-over');
+            };
+            
+            const handleDragLeave = (e) => {
+                e.currentTarget.classList.remove('drag-over');
+            };
+            
+            const exportTasks = () => {
+                const dataStr = JSON.stringify(tasks, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `vazifalar-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+            };
+            
+            const getStats = () => {
+                return {
+                    total: tasks.length,
+                    pending: tasks.filter(t => t.status === STATUSES.PENDING).length,
+                    inProgress: tasks.filter(t => t.status === STATUSES.IN_PROGRESS).length,
+                    completed: tasks.filter(t => t.status === STATUSES.COMPLETED).length,
+                    blocked: tasks.filter(t => t.status === STATUSES.BLOCKED).length
+                };
+            };
+            
+            const getProgress = () => {
+                const total = tasks.length;
+                const completed = tasks.filter(t => t.status === STATUSES.COMPLETED).length;
+                return total > 0 ? Math.round((completed / total) * 100) : 0;
+            };
+            
+            const getStatusClass = (status) => {
+                switch(status) {
+                    case STATUSES.PENDING: return 'status-pending';
+                    case STATUSES.IN_PROGRESS: return 'status-progress';
+                    case STATUSES.COMPLETED: return 'status-completed';
+                    case STATUSES.BLOCKED: return 'status-blocked';
+                    default: return '';
+                }
+            };
+            
+            const filteredTasks = tasks.filter(task => {
+                const statusMatch = filter === 'Hammasi' || task.status === filter;
+                const searchMatch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
+                return statusMatch && searchMatch;
+            });
+            
+            const stats = getStats();
+            const progress = getProgress();
+            
+            return (
+                <div className="container">
+                    {/* Header */}
+                    <div className="glass animate-slide mb-6" style={{padding: '32px'}}>
+                        <div className="flex flex-between flex-center flex-wrap">
+                            <div>
+                                <h1>Vazifalar</h1>
+                                <p className="text-white" style={{opacity: 0.8}}>
+                                    Liquid Glass Design
+                                </p>
+                            </div>
+                            <div className="flex">
+                                <button onClick={exportTasks} className="btn-secondary btn">
+                                    📥 Export
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Progress */}
+                    <div className="glass animate-slide mb-6" style={{padding: '24px', animationDelay: '0.1s'}}>
+                        <div className="flex flex-between flex-center mb-4">
+                            <span className="text-white" style={{fontSize: '18px', fontWeight: 500}}>Progress</span>
+                            <span className="text-white" style={{fontSize: '32px', fontWeight: 700}}>{progress}%</span>
+                        </div>
+                        <div className="progress-container">
+                            <div className="progress-bar" style={{width: `${progress}%`}} />
+                        </div>
+                    </div>
+                    
+                    {/* Stats */}
+                    <div className="grid grid-4 mb-6 animate-slide" style={{animationDelay: '0.2s'}}>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.pending}</div>
+                            <div className="stat-label">Kutilmoqda</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.inProgress}</div>
+                            <div className="stat-label">Jarayonda</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.completed}</div>
+                            <div className="stat-label">Bajarildi</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.total}</div>
+                            <div className="stat-label">Jami</div>
+                        </div>
+                    </div>
+                    
+                    {/* Add Task */}
+                    <div className="glass animate-slide mb-6" style={{padding: '24px', animationDelay: '0.3s'}}>
+                        <h2>Yangi vazifa</h2>
+                        <div className="grid grid-2 mb-4">
+                            <input
+                                type="text"
+                                value={newTaskTitle}
+                                onChange={(e) => setNewTaskTitle(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && addTask()}
+                                placeholder="Vazifa nomi..."
+                                className="w-full"
+                            />
+                            <input
+                                type="datetime-local"
+                                value={newTaskDeadline}
+                                onChange={(e) => setNewTaskDeadline(e.target.value)}
+                                className="w-full"
+                            />
+                        </div>
+                        <div className="flex flex-between">
+                            <select
+                                value={newTaskPriority}
+                                onChange={(e) => setNewTaskPriority(e.target.value)}
+                                style={{flex: 1}}
+                            >
+                                {Object.values(PRIORITIES).map(priority => (
+                                    <option key={priority} value={priority}>{priority}</option>
+                                ))}
+                            </select>
+                            <button onClick={addTask} className="btn">
+                                Qo'shish
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {/* Search & Filter */}
+                    <div className="glass animate-slide mb-6" style={{padding: '24px', animationDelay: '0.4s'}}>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="🔍 Qidirish..."
+                            className="w-full mb-4"
+                        />
+                        <div className="flex flex-wrap">
+                            <button
+                                onClick={() => setFilter('Hammasi')}
+                                className={filter === 'Hammasi' ? 'btn' : 'btn-secondary btn'}
+                            >
+                                Hammasi
+                            </button>
+                            {Object.values(STATUSES).map(status => (
+                                <button
+                                    key={status}
+                                    onClick={() => setFilter(status)}
+                                    className={filter === status ? 'btn' : 'btn-secondary btn'}
+                                >
+                                    {status}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Drag & Drop Zones */}
+                    <div className="grid grid-4 mb-6 animate-slide" style={{animationDelay: '0.5s'}}>
+                        {Object.values(STATUSES).map(status => (
+                            <div
+                                key={status}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => handleDrop(e, status)}
+                                onDragEnter={handleDragEnter}
+                                onDragLeave={handleDragLeave}
+                                className="drop-zone"
+                            >
+                                <div className="text-white" style={{fontSize: '14px', fontWeight: 600, opacity: 0.8}}>
+                                    {status}
+                                </div>
+                                <div className="text-white" style={{fontSize: '24px', fontWeight: 700, marginTop: '8px'}}>
+                                    {tasks.filter(t => t.status === status).length}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    {/* Tasks List */}
+                    <div className="animate-slide" style={{animationDelay: '0.6s'}}>
+                        {filteredTasks.length === 0 ? (
+                            <div className="glass" style={{padding: '60px', textAlign: 'center'}}>
+                                <div style={{fontSize: '48px', marginBottom: '16px'}}>📝</div>
+                                <p className="text-white" style={{fontSize: '18px', opacity: 0.8}}>
+                                    Vazifalar topilmadi
+                                </p>
+                            </div>
+                        ) : (
+                            filteredTasks.sort((a, b) => {
+                                const priorityOrder = { 'Yuqori': 3, "O'rta": 2, 'Past': 1 };
+                                return priorityOrder[b.priority] - priorityOrder[a.priority];
+                            }).map(task => {
+                                const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== STATUSES.COMPLETED;
+                                return (
+                                    <div
+                                        key={task.id}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, task)}
+                                        className={`task-card ${getStatusClass(task.status)}`}
+                                    >
+                                        <div className="flex flex-between flex-center flex-wrap">
+                                            <div style={{flex: 1}}>
+                                                <h3 className="text-white" style={{fontSize: '18px', fontWeight: 600, marginBottom: '8px'}}>
+                                                    {task.title}
+                                                </h3>
+                                                <div className="flex flex-wrap" style={{gap: '8px'}}>
+                                                    <span className="badge">{task.priority}</span>
+                                                    <span className="badge">
+                                                        📅 {new Date(task.createdAt).toLocaleDateString('uz-UZ')}
+                                                    </span>
+                                                    {task.deadline && (
+                                                        <span className={`badge ${isOverdue ? 'btn-delete' : ''}`}>
+                                                            ⏰ {new Date(task.deadline).toLocaleString('uz-UZ', {
+                                                                day: '2-digit',
+                                                                month: '2-digit',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            })}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex" style={{marginTop: '12px'}}>
+                                                <select
+                                                    value={task.status}
+                                                    onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                                                    style={{minWidth: '140px'}}
+                                                >
+                                                    {Object.values(STATUSES).map(status => (
+                                                        <option key={status} value={status}>{status}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => deleteTask(task.id)}
+                                                    className="btn-delete btn"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            );
+        }
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<TaskMonitorGlass />);
+    </script>
+</body>
+</html>
