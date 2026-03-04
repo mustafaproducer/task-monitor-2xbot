@@ -8,7 +8,7 @@ const path = require('path');
 const TOKEN = process.env.BOT_TOKEN || '7798199972:AAH0xSgL_RL2OGhG1RV0OHZnT53vNAlUFUc'; 
 const ADMIN_ID = process.env.ADMIN_ID || '5949913506'; 
 const CHANNEL_ID = process.env.CHANNEL_ID || '-1002947739734'; 
-const CARD_NUMBER = process.env.CARD_NUMBER || '5614 6822 1160 7850 (M Abdurahmonov)';
+const CARD_NUMBER = process.env.CARD_NUMBER || '4073 4200 8249 5759 (Avazxonov S)';
 const PRICE_TEXT = process.env.PRICE_TEXT || "Narxi: 50,000 so'm";
 
 // Cloud da fayl yo'qolib qolmasligi uchun (Persistent Disk bo'lmasa)
