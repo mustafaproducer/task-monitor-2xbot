@@ -56,8 +56,8 @@ bot.start(async (ctx) => {
     user.step = 'ASK_NAME';
     saveDB();
 
-    // Bu yerda yumaloq videoning FILE_ID sini berasiz. Hozircha oddiy matn va video yuborgan degan joy bor.
-    // ctx.replyWithVideoNote('FILE_ID_SHU_YERGA_YOZILADI').catch(e => console.log('Video note yoq'));
+    // Yumaloq videoni yuborish
+    ctx.replyWithVideoNote('DQACAgIAAxkBAAIEOGeMhy2JtC87xH32T3jNlw31G4_TAAIYQQACsUoxSWb3p7m8iNlXNgQ').catch(e => console.log('Video note yuborishda xatolik:', e));
     
     await ctx.reply(
         "👋 Assalomu alaykum!\n\n" +
@@ -113,14 +113,29 @@ bot.command('broadcast', async (ctx) => {
     await ctx.reply(`✅ Xabar muvaffaqiyatli **${success}** kishiga yuborildi.`);
 });
 
+// --- YUMALOQ VIDEO VA ODDIY MEDIA ID OLISH ---
+bot.on('message', async (ctx, next) => {
+    try {
+        if (ctx.message.video_note) {
+            const fileId = ctx.message.video_note.file_id;
+            return ctx.reply(`📹 **YUMALOQ VIDEO (VideoNote) ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+        }
+        if (ctx.message.video) {
+            const fileId = ctx.message.video.file_id;
+            return ctx.reply(`🎬 **ODDIY VIDEO ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+        }
+        if (ctx.message.document) {
+            const fileId = ctx.message.document.file_id;
+            return ctx.reply(`📂 **FAYL/HUJJAT ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+        }
+    } catch (e) {
+        console.error("Media ushlashda xato:", e);
+    }
+    return next();
+});
+
 // --- BARCHA XABARLAR UCHUN LOGIKA (2, 3, 4 va 5-QADAMLAR) ---
 bot.on('message', async (ctx) => {
-    // Agar ADMINDAN video (yumaloq video) kelsa, uning ID sini berish
-    if (String(ctx.from.id) === String(ADMIN_ID) && ctx.message.video_note) {
-        const fileId = ctx.message.video_note.file_id;
-        return ctx.reply(`📹 **Yumaloq Video FILE_ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab oling)*`, { parse_mode: 'Markdown' });
-    }
-
     const userId = ctx.from.id;
     const user = getUser(userId, ctx.from);
     
