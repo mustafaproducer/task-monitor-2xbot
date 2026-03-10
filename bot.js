@@ -56,17 +56,16 @@ bot.start(async (ctx) => {
     user.step = 'ASK_NAME';
     saveDB();
 
-    // Yumaloq videoni yuborish
-    ctx.replyWithVideoNote('DQACAgIAAxkBAAIEOGeMhy2JtC87xH32T3jNlw31G4_TAAIYQQACsUoxSWb3p7m8iNlXNgQ').catch(e => console.log('Video note yuborishda xatolik:', e));
+    // YUMALOQ VIDEO JO'NATISH (YANGI ID)
+    try {
+        await ctx.replyWithVideoNote('DQACAgIAAxkBAAP0abBr3-gOBiZ5c4xdr5pLcl5c294AApSUAAKy1YlJLk2xrZeL8N86BA');
+    } catch (e) {
+        console.log('Video note yuborishda xatolik:', e.message);
+    }
     
     await ctx.reply(
-        "👋 Assalomu alaykum!\n\n" +
-        "Siz bu yerda Instagramda kontent yaratuvchilar uchun maxsus tayyorlangan **50 ta eng sara Premium Promptlarni** qo'lga kiritishingiz mumkin.\n\n" +
-        "🔥 Bu promptlar yordamida:\n" +
-        "• Ko'rishlar sonini keskin oshirish\n" +
-        "• Story'larda auditoriyani qizdirish (warm-up)\n" +
-        "• Sotuvni ko'paytirish skriptlarini yozish sirlarini bilib olasiz.\n\n" +
-        "👇 Iltimos, **Ism familiyangizni kiriting** (Masalan: Alisher Valiyev):",
+        "👋 Assalomu alaykum! Siz bu yerda Instagramda kontent qiluvchilar uchun maxsus tayyorlangan 50 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
+        "👇 Iltimos, **Ismingizni kiriting** (Masalan: Alisher)🔥",
         Markup.removeKeyboard()
     );
 });
