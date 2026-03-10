@@ -61,7 +61,11 @@ bot.start(async (ctx) => {
     
     await ctx.reply(
         "👋 Assalomu alaykum!\n\n" +
-        "Siz bu yerda sun'iy intellekt uchun 50 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
+        "Siz bu yerda Instagramda kontent yaratuvchilar uchun maxsus tayyorlangan **50 ta eng sara Premium Promptlarni** qo'lga kiritishingiz mumkin.\n\n" +
+        "🔥 Bu promptlar yordamida:\n" +
+        "• Ko'rishlar sonini keskin oshirish\n" +
+        "• Story'larda auditoriyani qizdirish (warm-up)\n" +
+        "• Sotuvni ko'paytirish skriptlarini yozish sirlarini bilib olasiz.\n\n" +
         "👇 Iltimos, **Ism familiyangizni kiriting** (Masalan: Alisher Valiyev):",
         Markup.removeKeyboard()
     );
@@ -85,11 +89,38 @@ bot.command('admin', (ctx) => {
     if (String(ctx.from.id) !== String(ADMIN_ID)) return;
     const usersCount = Object.keys(db.users).length;
     const paidCount = Object.values(db.users).filter(u => u.isPaid).length;
-    ctx.reply(`📊 **Statistika**\n\n👥 Jami foydalanuvchilar: ${usersCount}\n✅ To'lov qilganlar: ${paidCount}\n\n📥 Bazani olish: /export`);
+    ctx.reply(`📊 **Statistika**\n\n👥 Jami foydalanuvchilar: ${usersCount}\n✅ To'lov qilganlar: ${paidCount}\n\n📥 Bazani olish: /export\n📢 Xabar yuborish: /broadcast [matn]`);
+});
+
+bot.command('broadcast', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    
+    const message = ctx.message.text.replace('/broadcast ', '').trim();
+    if (!message || message === '/broadcast') {
+        return ctx.reply("Iltimos, yuboriladigan matnni ham kiriting.\nMasalan: /broadcast Hammaga salom!");
+    }
+
+    await ctx.reply("⏳ Xabar yuborilmoqda...");
+    let success = 0;
+    
+    for (const id in db.users) {
+        try {
+            await ctx.telegram.sendMessage(id, message);
+            success++;
+        } catch (e) {}
+    }
+    
+    await ctx.reply(`✅ Xabar muvaffaqiyatli **${success}** kishiga yuborildi.`);
 });
 
 // --- BARCHA XABARLAR UCHUN LOGIKA (2, 3, 4 va 5-QADAMLAR) ---
 bot.on('message', async (ctx) => {
+    // Agar ADMINDAN video (yumaloq video) kelsa, uning ID sini berish
+    if (String(ctx.from.id) === String(ADMIN_ID) && ctx.message.video_note) {
+        const fileId = ctx.message.video_note.file_id;
+        return ctx.reply(`📹 **Yumaloq Video FILE_ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab oling)*`, { parse_mode: 'Markdown' });
+    }
+
     const userId = ctx.from.id;
     const user = getUser(userId, ctx.from);
     
