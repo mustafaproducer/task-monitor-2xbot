@@ -4,8 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 // --- SOZLAMALAR ---
-const BOT_TOKEN = process.env.BOT_TOKEN || '7798199972:AAH0xSgL_RL2OGhG1RV0OHZnT53vNAlUFUc'; // Shu token vaqtincha task-monitordan olingan
+const BOT_TOKEN = process.env.BOT_TOKEN;
+if (!BOT_TOKEN) {
+    console.error("❌ XATOLIK: BOT_TOKEN topilmadi! Iltimos Render'da Environment Variables ga BOT_TOKEN qoshing.");
+    process.exit(1);
+}
 const ADMIN_ID = process.env.ADMIN_ID || '5949913506'; 
+const SALES_GROUP_ID = process.env.SALES_GROUP_ID || '-1003863355406'; // Sales guruh ID si
 const CHANNEL_ID = process.env.CHANNEL_ID || '-1002947739734'; // Yopiq kanalingiz ID si
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@mustafaproducer'; // Yoki siz aytgan yangi username
 const CARD_NUMBER = process.env.CARD_NUMBER || '4073 4200 8249 5759 (Avazxonov S)';
@@ -103,8 +108,8 @@ bot.on('message', async (ctx) => {
         
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
         
-        // Adminga jo'natish
-        await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
+        // Sales guruhga jo'natish
+        await ctx.telegram.sendPhoto(SALES_GROUP_ID, photoId, {
             caption: `🔔 **YANGI TO'LOV KELDI!**\n\n` +
                      `👤 Mijoz: ${user.fullName} (@${user.tgUsername || 'yoq'})\n` +
                      `📞 Raqam: ${user.phone}\n` +
