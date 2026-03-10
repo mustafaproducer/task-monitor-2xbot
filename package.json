@@ -1,15 +1,17 @@
 {
-  "name": "telegram-bot-premium-academy",
-  "version": "2.0.0",
-  "description": "Premium Bot with Express Server for Render",
-  "main": "bot.js",
+  "name": "premium-prompt-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "start": "node bot.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "express": "^4.18.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "dotenv": "^17.3.1",
+    "telegraf": "^4.16.3"
   }
 }
