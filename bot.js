@@ -112,20 +112,22 @@ bot.command('broadcast', async (ctx) => {
     await ctx.reply(`✅ Xabar muvaffaqiyatli **${success}** kishiga yuborildi.`);
 });
 
-// --- YUMALOQ VIDEO VA ODDIY MEDIA ID OLISH ---
+// --- YUMALOQ VIDEO VA ODDIY MEDIA ID OLISH (FAQAT ADMIN UCHUN) ---
 bot.on('message', async (ctx, next) => {
     try {
-        if (ctx.message.video_note) {
-            const fileId = ctx.message.video_note.file_id;
-            return ctx.reply(`📹 **YUMALOQ VIDEO (VideoNote) ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
-        }
-        if (ctx.message.video) {
-            const fileId = ctx.message.video.file_id;
-            return ctx.reply(`🎬 **ODDIY VIDEO ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
-        }
-        if (ctx.message.document) {
-            const fileId = ctx.message.document.file_id;
-            return ctx.reply(`📂 **FAYL/HUJJAT ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+        if (String(ctx.from.id) === String(ADMIN_ID)) {
+            if (ctx.message.video_note) {
+                const fileId = ctx.message.video_note.file_id;
+                return ctx.reply(`📹 **YUMALOQ VIDEO (VideoNote) ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+            }
+            if (ctx.message.video) {
+                const fileId = ctx.message.video.file_id;
+                return ctx.reply(`🎬 **ODDIY VIDEO ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+            }
+            if (ctx.message.document) {
+                const fileId = ctx.message.document.file_id;
+                return ctx.reply(`📂 **FAYL/HUJJAT ID:**\n\n\`${fileId}\`\n\n*(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+            }
         }
     } catch (e) {
         console.error("Media ushlashda xato:", e);
