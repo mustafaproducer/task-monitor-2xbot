@@ -239,11 +239,9 @@ bot.on('callback_query', async (ctx) => {
                 }
                 
                 // Admindagi tugmani yo'q qilish va statusni o'zgartirish
-                const oldCaption = ctx.callbackQuery.message.caption || '';
-                const newCaption = oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "✅ TASDIQLANDI");
-                await ctx.editMessageCaption(newCaption);
+                const userInfo = targetUser ? `\n👤 Mijoz: ${targetUser.fullName || targetUser.tgName} (@${targetUser.tgUsername || 'yoq'})\n📞 Raqam: ${targetUser.phone || 'yoq'}` : '';
                 
-                
+                await ctx.editMessageCaption(`✅ TASDIQLANDI${userInfo}`);
                 
             } catch (err) {
                 console.error("Link yaratishda xatolik:", err);
@@ -258,11 +256,9 @@ bot.on('callback_query', async (ctx) => {
             );
             
             // Admindagi tugmani yo'q qilish
-            const oldCaption = ctx.callbackQuery.message.caption || '';
-            const newCaption = oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "❌ RAD ETILDI");
-            await ctx.editMessageCaption(newCaption);
+            const userInfo = targetUser ? `\n👤 Mijoz: ${targetUser.fullName || targetUser.tgName} (@${targetUser.tgUsername || 'yoq'})\n📞 Raqam: ${targetUser.phone || 'yoq'}` : '';
             
-            
+            await ctx.editMessageCaption(`❌ RAD ETILDI${userInfo}`);
         }
         await ctx.answerCbQuery();
     }
