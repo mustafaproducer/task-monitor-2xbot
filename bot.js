@@ -11,6 +11,17 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@azaayd';
 
 const bot = new Telegraf(BOT_TOKEN);
 const DB_FILE = './users.json';
+
+// Render uchun Port ochish (Web Service xatosini oldini olish)
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running...\n');
+}).listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
 let db = { users: {} };
 
 if (fs.existsSync(DB_FILE)) {
