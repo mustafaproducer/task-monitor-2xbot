@@ -250,11 +250,11 @@ bot.launch({
     allowedUpdates: ['message', 'callback_query', 'contact'],
     dropPendingUpdates: true 
 }).then(() => {
-    console.log("✅ Bot ishga tushdi!");
+    console.log("🚀 BOT MUVAFFAQIYATLI ISHGA TUSHDI! (ID: " + Math.random().toString(36).substring(7) + ")");
 }).catch((err) => {
     if (err.response && err.response.error_code === 409) {
         console.log("⚠️ Conflict aniqlandi. 5 soniyadan keyin qayta urunib ko'ramiz...");
-        setTimeout(() => process.exit(1), 5000);
+        setTimeout(() => process.exit(1), 5000); // 409 bo'lsa processni yopamiz, Render o'zi qayta yoqadi
     } else {
         console.error("Bot launch xatosi:", err);
     }
