@@ -246,8 +246,18 @@ bot.catch((err) => {
     console.log('Bot xatosi:', err);
 });
 
-bot.launch().then(() => {
+bot.launch({
+    allowedUpdates: ['message', 'callback_query', 'contact'],
+    dropPendingUpdates: true 
+}).then(() => {
     console.log("✅ Bot ishga tushdi!");
+}).catch((err) => {
+    if (err.response && err.response.error_code === 409) {
+        console.log("⚠️ Conflict aniqlandi. 5 soniyadan keyin qayta urunib ko'ramiz...");
+        setTimeout(() => process.exit(1), 5000);
+    } else {
+        console.error("Bot launch xatosi:", err);
+    }
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
