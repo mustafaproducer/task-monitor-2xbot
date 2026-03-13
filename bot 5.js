@@ -1,210 +1,287 @@
-const https = require('https');
-const http = require('http'); 
+require('dotenv').config();
+const { Telegraf, Markup } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
 
-// --- RENDER HEALTH CHECK (Simple & Fast) ---
-const PORT = process.env.PORT || 10000;
-const server = http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Bot is running!');
-});
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on port ${PORT}`);
-});
-
-// --- CONFIG (Hardcoded for Stability) ---
-const TOKEN = process.env.BOT_TOKEN || '7798199972:AAH0xSgL_RL2OGhG1RV0OHZnT53vNAlUFUc'; 
+// --- SOZLAMALAR ---
+const BOT_TOKEN = process.env.BOT_TOKEN;
+if (!BOT_TOKEN) {
+    console.error("❌ XATOLIK: BOT_TOKEN topilmadi! Iltimos Render'da Environment Variables ga BOT_TOKEN qoshing.");
+    process.exit(1);
+}
 const ADMIN_ID = process.env.ADMIN_ID || '5949913506'; 
-const CHANNEL_ID = process.env.CHANNEL_ID || '-1002947739734'; 
-const SALES_GROUP_ID = '-1003863355406'; // YANGI GURUH ID
+const SALES_GROUP_ID = process.env.SALES_GROUP_ID || '-1003863355406'; // Sales guruh ID si
+const CHANNEL_ID = process.env.CHANNEL_ID || '-1002947739734'; // Yopiq kanalingiz ID si
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@azaayd'; // Yoki siz aytgan yangi username
 const CARD_NUMBER = process.env.CARD_NUMBER || '4073 4200 8249 5759 (Avazxonov S)';
-const PRICE_TEXT = process.env.PRICE_TEXT || "Narxi: 100,000 so'm";
-const DB_FILE = path.join(__dirname, 'users.json');
 
-// --- DATABASE ---
-let users = [];
-try { if (fs.existsSync(DB_FILE)) users = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) {}
+const bot = new Telegraf(BOT_TOKEN);
+const DB_FILE = path.join(__dirname, 'database.json');
 
-function saveUser(user) {
-    if (!users.find(u => u.id === user.id)) {
-        users.push({ id: user.id, name: user.first_name, username: user.username, joinedAt: new Date().toISOString(), isPaid: false });
-        // Cloud da fayl yozish ishlamasligi mumkin, lekin try-catch bilan
-        try { fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2)); } catch (e) {}
-    }
-}
-function markAsPaid(userId) {
-    const user = users.find(u => u.id == userId);
-    if (user) { 
-        user.isPaid = true; user.paidAt = new Date().toISOString(); 
-        try { fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2)); } catch (e) {}
-    }
-}
-
-// --- API ---
-function api(method, data) {
-    return new Promise((resolve, reject) => {
-        const req = https.request({ hostname: 'api.telegram.org', path: `/bot${TOKEN}/${method}`, method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { resolve({}); } });
-        });
-        req.on('error', reject);
-        req.write(JSON.stringify(data));
-        req.end();
-    });
-}
-
-// --- POLLING ---
-let offset = 0;
-async function getUpdates() {
+// --- BAZA (DATABASE) YUKLASH ---
+let db = { users: {} };
+if (fs.existsSync(DB_FILE)) {
     try {
-        const updates = await api('getUpdates', { offset, timeout: 30 });
-        if (updates.result && updates.result.length > 0) {
-            for (const update of updates.result) { await processUpdate(update); offset = update.update_id + 1; }
-        }
-    } catch (e) { console.error('Polling Error:', e.message); }
-    setTimeout(getUpdates, 100); 
+        db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    } catch (e) {
+        console.error("Baza o'qishda xatolik:", e);
+    }
 }
 
-// --- LOGIC ---
-async function processUpdate(update) {
-    if (update.message) {
-        const msg = update.message;
-        const chatId = msg.chat.id;
-        const text = msg.text;
-        if (msg.from) saveUser(msg.from);
+function saveDB() {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
 
-        // START
-        if (text === '/start') {
-            await api('sendMessage', {
-                chat_id: chatId,
-                text: `Assalomu alaykum, ${msg.from.first_name}! 👋\n\n` +
-                      `🚀 **Premium Promptlar Akademiyasiga** xush kelibsiz.\n\n` +
-                      `Bu yerda siz top-darajadagi sun'iy intellekt promptlarini (Midjourney, ChatGPT) topasiz.\n\n` +
-                      `Nimani tanlaysiz? 👇`,
-                reply_markup: {
-                    keyboard: [
-                        [{ text: '💎 Premium Promptlarni Sotib Olish' }],
-                        [{ text: '📞 Savol berish (Admin)' }]
-                    ],
-                    resize_keyboard: true
-                }
-            });
+// User obyekti olish/yaratish
+function getUser(userId, from) {
+    if (!db.users[userId]) {
+        db.users[userId] = {
+            id: userId,
+            tgName: from.first_name || '',
+            tgUsername: from.username || '',
+            joinedAt: new Date().toISOString(),
+            step: 'START', // Qaysi qadamda ekanligi
+            fullName: null,
+            phone: null,
+            isPaid: false
+        };
+        saveDB();
+    }
+    return db.users[userId];
+}
+
+// --- /START (1-QADAM) ---
+bot.start(async (ctx) => {
+    const user = getUser(ctx.from.id, ctx.from);
+    user.step = 'ASK_NAME';
+    saveDB();
+
+    // YUMALOQ VIDEO JO'NATISH (YANGI ID)
+    try {
+        await ctx.replyWithVideoNote('DQACAgIAAxkBAAP0abBr3-gOBiZ5c4xdr5pLcl5c294AApSUAAKy1YlJLk2xrZeL8N86BA');
+    } catch (e) {
+        console.log('Video note yuborishda xatolik:', e.message);
+    }
+    
+    await ctx.reply(
+        "👋 Assalomu alaykum! Siz bu yerda Instagramda kontent qiluvchilar uchun maxsus tayyorlangan 50 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
+        "👇 Iltimos, Ismingizni kiriting (Masalan: Alisher)🔥",
+        Markup.removeKeyboard()
+    );
+});
+
+// --- ADMIN UCHUN BUYRUQLAR ---
+bot.command('export', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    
+    let csv = "ID,TgName,Username,FullName,Phone,JoinedAt,IsPaid\n";
+    for (const id in db.users) {
+        const u = db.users[id];
+        csv += `${u.id},"${u.tgName}","${u.tgUsername}","${u.fullName || ''}","${u.phone || ''}",${u.joinedAt},${u.isPaid}\n`;
+    }
+    
+    fs.writeFileSync('users_export.csv', csv);
+    await ctx.replyWithDocument({ source: 'users_export.csv', filename: 'Foydalanuvchilar_Bazasi.csv' });
+});
+
+bot.command('admin', (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const usersCount = Object.keys(db.users).length;
+    const paidCount = Object.values(db.users).filter(u => u.isPaid).length;
+    ctx.reply(`📊 Statistika\n\n👥 Jami foydalanuvchilar: ${usersCount}\n✅ To'lov qilganlar: ${paidCount}\n\n📥 Bazani olish: /export\n📢 Xabar yuborish: /broadcast [matn]`);
+});
+
+bot.command('broadcast', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    
+    const message = ctx.message.text.replace('/broadcast ', '').trim();
+    if (!message || message === '/broadcast') {
+        return ctx.reply("Iltimos, yuboriladigan matnni ham kiriting.\nMasalan: /broadcast Hammaga salom!");
+    }
+
+    await ctx.reply("⏳ Xabar yuborilmoqda...");
+    let success = 0;
+    
+    for (const id in db.users) {
+        try {
+            await ctx.telegram.sendMessage(id, message);
+            success++;
+        } catch (e) {}
+    }
+    
+    await ctx.reply(`✅ Xabar muvaffaqiyatli ${success} kishiga yuborildi.`);
+});
+
+// --- YUMALOQ VIDEO VA ODDIY MEDIA ID OLISH (FAQAT ADMIN UCHUN) ---
+bot.on('message', async (ctx, next) => {
+    try {
+        if (String(ctx.from.id) === String(ADMIN_ID)) {
+            if (ctx.message.video_note) {
+                const fileId = ctx.message.video_note.file_id;
+                return ctx.reply(`📹 YUMALOQ VIDEO (VideoNote) ID:\n\n\`${fileId}\`\n\n(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+            }
+            if (ctx.message.video) {
+                const fileId = ctx.message.video.file_id;
+                return ctx.reply(`🎬 ODDIY VIDEO ID:\n\n\`${fileId}\`\n\n(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+            }
+            if (ctx.message.document) {
+                const fileId = ctx.message.document.file_id;
+                return ctx.reply(`📂 FAYL/HUJJAT ID:\n\n\`${fileId}\`\n\n(Buni nusxalab, menga yuboring!)*`, { parse_mode: 'Markdown' });
+            }
+        }
+    } catch (e) {
+        console.error("Media ushlashda xato:", e);
+    }
+    return next();
+});
+
+// --- BARCHA XABARLAR UCHUN LOGIKA (2, 3, 4 va 5-QADAMLAR) ---
+bot.on('message', async (ctx) => {
+    const userId = ctx.from.id;
+    const user = getUser(userId, ctx.from);
+    
+    // Agar foydalanuvchi allaqachon kanalga qo'shilgan bo'lsa
+    if (user.isPaid) {
+        return ctx.reply("✅ Siz allaqachon premium promptlarni qo'lga kiritgansiz. Kanalimizda qoling!");
+    }
+
+    // Agar text yoki raqam emas, balki RASM bo'lsa (To'lov skrinshotini tashlagan bo'lsa)
+    if (ctx.message.photo) {
+        if (user.step !== 'ASK_PHOTO') {
+            return ctx.reply("Siz hali to'lov bosqichiga yetib kelmadingiz. /start ni bosing.");
         }
         
-        // BUY
-        else if (text === '💎 Premium Promptlarni Sotib Olish') {
-            await api('sendMessage', {
-                chat_id: chatId,
-                text: `💰 **PREMIUM KANALGA KIRISH**\n\n` +
-                      `💸 ${PRICE_TEXT}\n\n` +
-                      `💳 Karta raqam:\n\`${CARD_NUMBER}\`\n\n` +
-                      `❗️ To'lov qilgandan so'ng, chek rasmkasi (skrinshot)ni shu yerga yuboring.`,
-                parse_mode: 'Markdown'
-            });
-        }
-
-        // SUPPORT
-        else if (text === '📞 Savol berish (Admin)') {
-            await api('sendMessage', {
-                chat_id: chatId,
-                text: `👨‍💻 **Yordam markazi**\n\n` +
-                      `Savollaringiz bo'lsa, adminga yozishingiz mumkin:\n` +
-                      `@mustafaproducer`
-            });
-        }
-
-        // ADMIN STATS
-        else if (text === '/admin') {
-            if (String(chatId) === String(ADMIN_ID)) {
-                const paidUsers = users.filter(u => u.isPaid).length;
-                await api('sendMessage', {
-                    chat_id: chatId,
-                    text: `📊 **ADMIN STATISTIKA**\n\n` +
-                          `👥 Jami foydalanuvchilar: **${users.length}** ta\n` +
-                          `✅ Sotib olganlar: **${paidUsers}** ta\n` +
-                          `💰 Taxminiy tushum: **${(paidUsers * 100000).toLocaleString()}** so'm\n\n` +
-                          `📢 Reklama yuborish uchun:\n/broadcast [Xabar matni]`
-                });
+        await ctx.reply("✅ Skrinshot qabul qilindi! Admin tasdiqlashini kuting. Tez orada javob beramiz.");
+        
+        const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+        
+        // Sales guruhga jo'natish
+        await ctx.telegram.sendPhoto(SALES_GROUP_ID, photoId, {
+            caption: `🔔 YANGI TO'LOV KELDI!\n\n` +
+                     `👤 Mijoz: ${user.fullName} (@${user.tgUsername || 'yoq'})\n` +
+                     `📞 Raqam: ${user.phone}\n` +
+                     `🆔 ID: ${user.id}`,
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '✅ Tasdiqlash', callback_data: `approve_${userId}` }],
+                    [{ text: '❌ Rad etish', callback_data: `reject_${userId}` }]
+                ]
             }
-        }
-
-        // BROADCAST
-        else if (text && text.startsWith('/broadcast ')) {
-            if (String(chatId) === String(ADMIN_ID)) {
-                const message = text.replace('/broadcast ', '');
-                let count = 0;
-                await api('sendMessage', { chat_id: chatId, text: `⏳ Xabar yuborish boshlandi...` });
-                for (const user of users) {
-                    try { await api('sendMessage', { chat_id: user.id, text: message }); count++; } catch (e) {}
-                }
-                await api('sendMessage', { chat_id: chatId, text: `✅ Xabar **${count}** ta foydalanuvchiga yuborildi!` });
-            }
-        }
-
-        // PHOTO (PAYMENT) -> SALES GROUP
-        else if (msg.photo) {
-            await api('sendMessage', { chat_id: chatId, text: "✅ Skrinshot qabul qilindi! Admin tasdiqlashini kuting. Tez orada javob beramiz. ⏳" });
-            const photoId = msg.photo[msg.photo.length - 1].file_id;
-            
-            // 1. Adminga yuborish (Eski usul)
-            await api('sendPhoto', {
-                chat_id: ADMIN_ID,
-                photo: photoId,
-                caption: `🔔 **YANGI TO'LOV!**\n\n👤 Kimdan: ${msg.from.first_name} (ID: ${msg.from.id})`,
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: `approve_${chatId}` }, { text: '❌ Rad etish', callback_data: `reject_${chatId}` }]]
-                }
-            });
-
-            // 2. SALES GURUHGA yuborish (Yangi usul)
-            await api('sendPhoto', {
-                chat_id: SALES_GROUP_ID,
-                photo: photoId,
-                caption: `🔔 **YANGI TO'LOV!**\n\n👤 Kimdan: ${msg.from.first_name} (ID: \`${msg.from.id}\`)\nUsername: @${msg.from.username || 'yoq'}`,
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [[{ text: '✅ Tasdiqlash', callback_data: `approve_${chatId}` }, { text: '❌ Rad etish', callback_data: `reject_${chatId}` }]]
-                }
-            });
-        }
+        });
+        return;
     }
 
-    // CALLBACK QUERY
-    if (update.callback_query) {
-        const cq = update.callback_query;
-        const data = cq.data;
-        const msgChatId = cq.message.chat.id; // Admin yoki Guruh ID
-        const msgId = cq.message.message_id;
+    // Matnli javoblar logikasi
+    const text = ctx.message.text;
 
-        if (data.startsWith('approve_')) {
-            const userId = data.split('_')[1];
+    if (user.step === 'ASK_NAME' && text) {
+        user.fullName = text;
+        user.step = 'ASK_PHONE';
+        saveDB();
+        
+        await ctx.reply(
+            `Rahmat, ${user.fullName}!\n\n` +
+            `Raqamingizni quyidagi tugma orqali yuboring 👇`,
+            Markup.keyboard([
+                Markup.button.contactRequest('📞 Raqamni yuborish')
+            ]).resize().oneTime()
+        );
+    } 
+    else if (user.step === 'ASK_PHONE' && (ctx.message.contact || text)) {
+        user.phone = ctx.message.contact ? ctx.message.contact.phone_number : text;
+        user.step = 'ASK_PHOTO';
+        saveDB();
+        
+        await ctx.reply(
+            `✅ Raqamingiz qabul qilindi.\n\n` +
+            `🎁 50 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
+            `💳 Ushbu kartaga 49,000 so'm o'tkazing:\n` +
+            `\`${CARD_NUMBER}\`\n\n` +
+            `📸 So'ngra to'lov skrinshotini (chekini) shu botga rasm qilib tashlang!`,
+            { parse_mode: 'Markdown', ...Markup.removeKeyboard() }
+        );
+    }
+});
+
+// --- INLINE TUGMALAR (ADMIN TASDIQLASH/RAD ETISH) ---
+bot.on('callback_query', async (ctx) => {
+    const data = ctx.callbackQuery.data;
+    const msgId = ctx.callbackQuery.message.message_id;
+    
+    if (data.startsWith('approve_') || data.startsWith('reject_')) {
+        const action = data.split('_')[0];
+        const targetUserId = data.split('_')[1];
+        const targetUser = db.users[targetUserId];
+
+        if (action === 'approve') {
             try {
-                const expireDate = Math.floor(Date.now() / 1000) + 86400; 
-                const linkRes = await api('createChatInviteLink', { chat_id: CHANNEL_ID, member_limit: 1, expire_date: expireDate });
+                // Kanalga bir martalik va 24 soatlik link yaratish
+                const expireDate = Math.floor(Date.now() / 1000) + 86400; // 24 soat
+                const linkRes = await ctx.telegram.createChatInviteLink(CHANNEL_ID, {
+                    member_limit: 1,
+                    expire_date: expireDate
+                });
                 
-                if (linkRes.ok && linkRes.result) {
-                    const inviteLink = linkRes.result.invite_link;
-                    
-                    // Userga
-                    await api('sendMessage', { chat_id: userId, text: `🎉 **To'lov tasdiqlandi!** Rahmat.\n\nMaxsus Link:\n${inviteLink}\n\n⚠️ Bu link faqat **BIR MARTA** ishlaydi va **24 soat** ichida kuyadi!` });
-                    markAsPaid(userId);
-                    
-                    // Xabarni yangilash (Admin yoki Guruhda)
-                    await api('editMessageCaption', { chat_id: msgChatId, message_id: msgId, caption: `✅ **TASDIQLANDI** (Admin: ${cq.from.first_name})\n\nLink yuborildi.` });
-                } else {
-                    await api('sendMessage', { chat_id: msgChatId, text: `❌ Link xatosi: ${JSON.stringify(linkRes)}` });
+                const inviteLink = linkRes.invite_link;
+                
+                // Mijozga xabar
+                await ctx.telegram.sendMessage(targetUserId, 
+                    `🎉 To'lovingiz tasdiqlandi, kutganingiz uchun rahmat!\n\n` +
+                    `Mana sizga yopiq kanal uchun maxsus link:\n🔗 ${inviteLink}\n\n` +
+                    `⚠️ Bu link faqat "BIR MARTA" ishlaydi va "24 soat" ichida kuyadi!`
+                );
+                
+                // Bazani yangilash
+                if(targetUser) {
+                    targetUser.isPaid = true;
+                    saveDB();
                 }
-            } catch (e) { console.error('Link Error:', e); }
-        } else if (data.startsWith('reject_')) {
-            const userId = data.split('_')[1];
-            await api('sendMessage', { chat_id: userId, text: "❌ Kechirasiz, to'lovingiz tasdiqlanmadi. Admin bilan bog'laning." });
-            await api('editMessageCaption', { chat_id: msgChatId, message_id: msgId, caption: `❌ **RAD ETILDI** (Admin: ${cq.from.first_name})` });
+                
+                // Admindagi tugmani yo'q qilish va statusni o'zgartirish
+                const oldCaption = ctx.callbackQuery.message.caption || '';
+                const newCaption = oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "✅ TASDIQLANDI");
+                await ctx.editMessageCaption(newCaption);
+                
+                
+                
+            } catch (err) {
+                console.error("Link yaratishda xatolik:", err);
+                await ctx.answerCbQuery("Link yaratishda xatolik! Bot kanalga to'liq adminmi?");
+            }
+        } 
+        else if (action === 'reject') {
+            // Mijozga xabar
+            await ctx.telegram.sendMessage(targetUserId, 
+                `❌ Kechirasiz, to'lovingiz tasdiqlanmadi.\n\n` +
+                `Admin bilan bog'laning: ${ADMIN_USERNAME}`
+            );
+            
+            // Admindagi tugmani yo'q qilish
+            const oldCaption = ctx.callbackQuery.message.caption || '';
+            const newCaption = oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "❌ RAD ETILDI");
+            await ctx.editMessageCaption(newCaption);
+            
+            
         }
-        await api('answerCallbackQuery', { callback_query_id: cq.id });
+        await ctx.answerCbQuery();
     }
-}
+});
 
-getUpdates();
+// --- RENDER UCHUN HTTP SERVER ---
+const express = require('express');
+const app = express();
+app.get('/', (req, res) => res.send('Bot is running!'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
+
+// Botni ishga tushirish
+bot.launch({ dropPendingUpdates: true }).then(() => {
+    console.log("🚀 Premium Prompt boti ishga tushdi!");
+});
+
+// Xatoliklarni ushlab qolish (qotib qolmasligi uchun)
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
