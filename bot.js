@@ -181,7 +181,6 @@ bot.on('message', async (ctx) => {
 
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
-    const msgId = ctx.callbackQuery.message.message_id;
     
     if (data.startsWith('approve_') || data.startsWith('reject_')) {
         const action = data.split('_')[0];
@@ -190,7 +189,7 @@ bot.on('callback_query', async (ctx) => {
 
         if (action === 'approve') {
             try {
-                const expireDate = Math.floor(Date.now() / 1000) + 86400; // 24 soat
+                const expireDate = Math.floor(Date.now() / 1000) + 86400;
                 const linkRes = await ctx.telegram.createChatInviteLink(CHANNEL_ID, {
                     member_limit: 1,
                     expire_date: expireDate
@@ -215,7 +214,7 @@ bot.on('callback_query', async (ctx) => {
                 
             } catch (err) {
                 console.error("Link yaratishda xatolik:", err);
-                await ctx.answerCbQuery("Link yaratishda xatolik! Bot kanalga to'liq adminmi?");
+                await ctx.answerCbQuery("Link yaratishda xatolik!");
             }
         } 
         else if (action === 'reject') {
@@ -232,12 +231,12 @@ bot.on('callback_query', async (ctx) => {
     }
 });
 
-bot.catch((err, ctx) => {
-    console.log(`Botda xato: ${ctx.updateType}`, err);
+bot.catch((err) => {
+    console.log('Bot xatosi:', err);
 });
 
 bot.launch().then(() => {
-    console.log("Bot ishga tushdi!");
+    console.log("✅ Bot ishga tushdi!");
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
