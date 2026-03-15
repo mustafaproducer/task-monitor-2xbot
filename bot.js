@@ -151,7 +151,7 @@ bot.on('message', async (ctx) => {
         await ctx.reply(
             `✅ Raqamingiz qabul qilindi.\n\n` +
             `🎁 50 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
-            `💳 Ushbu kartaga 49,000 so'm o'tkazing:\n` +
+            `💳 Ushbu kartaga 57,000 so'm o'tkazing:\n` +
             `\`${CARD_NUMBER}\`\n\n` +
             `📸 So'ngra to'lov skrinshotini (chekini) shu botga rasm qilib tashlang!`,
             { parse_mode: 'Markdown', ...Markup.removeKeyboard() }
@@ -184,7 +184,7 @@ bot.on('message', async (ctx) => {
     if (user.step === 'WAIT_FOR_PAYMENT' && text) {
         await ctx.reply(
             `Iltimos, to'lov skrinshotini (rasm qilib) yuboring.\n\n` +
-            `💳 Karta: \`${CARD_NUMBER}\` (49,000 so'm)`,
+            `💳 Karta: \`${CARD_NUMBER}\` (57,000 so'm)`,
             { parse_mode: 'Markdown', ...Markup.removeKeyboard() }
         );
     }
