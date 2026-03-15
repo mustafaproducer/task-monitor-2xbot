@@ -66,7 +66,7 @@ bot.start(async (ctx) => {
     }
     
     await ctx.reply(
-        "👋 Assalomu alaykum! Siz bu yerda Instagramda kontent qiluvchilar uchun maxsus tayyorlangan 50 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
+        "👋 Assalomu alaykum! Siz bu yerda Instagramda kontent qiluvchilar uchun maxsus tayyorlangan 57 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
         "👇 Iltimos, Ismingizni kiriting (Masalan: Alisher)🔥",
         Markup.removeKeyboard()
     );
@@ -150,7 +150,7 @@ bot.on('message', async (ctx) => {
         
         await ctx.reply(
             `✅ Raqamingiz qabul qilindi.\n\n` +
-            `🎁 50 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
+            `🎁 57 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
             `💳 Ushbu kartaga 57,000 so'm o'tkazing:\n` +
             `\`${CARD_NUMBER}\`\n\n` +
             `📸 So'ngra to'lov skrinshotini (chekini) shu botga rasm qilib tashlang!`,
