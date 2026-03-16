@@ -11,6 +11,8 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@azaayd';
 
 const bot = new Telegraf(BOT_TOKEN);
 let db = { users: {} };
+
+
 const DB_FILE = './users.json';
 
 // Render uchun Port ochish (Web Service xatosini oldini olish)
