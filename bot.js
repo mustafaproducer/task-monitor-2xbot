@@ -25,8 +25,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
-const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'mustafa2026';
+const DASHBOARD_USER = process.env.DASHBOARD_USER || '2xstat';
+const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'saleofprompts';
 const AUTH_TOKEN = 'secret_2x_premium_token';
 
 // Himoya (Auth)
