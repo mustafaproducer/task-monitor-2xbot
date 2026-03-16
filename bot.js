@@ -10,6 +10,7 @@ const CARD_NUMBER = process.env.CARD_NUMBER || "4073 4200 8249 5759 (Avazxonov S
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@azaayd';
 
 const bot = new Telegraf(BOT_TOKEN);
+let db = { users: {} };
 const DB_FILE = './users.json';
 
 // Render uchun Port ochish (Web Service xatosini oldini olish)
@@ -79,7 +80,7 @@ app.get('/logout', (req, res) => {
 app.get('/', checkAuth, (req, res) => {
     try {
         // Fallback for db and db.users
-        if (!db) db = { users: {} };
+        if (typeof db === 'undefined') { var db = { users: {} }; }
         if (!db.users) db.users = {};
         
         const usersArray = Object.values(db.users) || [];
