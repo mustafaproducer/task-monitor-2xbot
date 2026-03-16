@@ -37,89 +37,182 @@ app.get('/login', (req, res) => {
     <html><head><title>Admin Panel | Login</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { background: #0f0f11; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: #1a1a1d; padding: 40px; border-radius: 16px; border: 1px solid #D4AF37; box-shadow: 0 15px 35px rgba(212,175,55,0.15); text-align: center; width: 100%; max-width: 360px; }
-        h2 { color: #D4AF37; margin-bottom: 30px; letter-spacing: 2px; font-weight: 600; }
-        input { width: 100%; padding: 14px; margin-bottom: 20px; background: #0f0f11; border: 1px solid #333; color: #fff; border-radius: 8px; box-sizing: border-box; outline: none; font-size: 16px; transition: 0.3s; }
-        input:focus { border-color: #D4AF37; box-shadow: 0 0 8px rgba(212,175,55,0.3); }
-        button { width: 100%; padding: 14px; background: linear-gradient(135deg, #D4AF37, #AA8222); color: #000; border: none; border-radius: 8px; font-weight: 700; font-size: 16px; letter-spacing: 1px; cursor: pointer; transition: 0.3s; }
-        button:hover { opacity: 0.9; transform: translateY(-2px); }
-    </style></head><body>
-        <div class="card">
-            <h2>ADMIN PANEL</h2>
-            <form method="POST" action="/login">
-                <input type="text" name="username" placeholder="Login" required>
-                <input type="password" name="password" placeholder="Parol" required>
-                <button type="submit">KIRISH</button>
-            </form>
-        </div>
-    </body></html>
-    `);
-});
+        /* FONTLAR */
+        @font-face {
+            font-family: 'Radnika Next';
+            src: local('Radnika Next'), local('Helvetica Neue'), local('Inter'), sans-serif;
+            font-weight: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === DASHBOARD_USER && password === DASHBOARD_PASS) {
-        res.cookie('auth', AUTH_TOKEN, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true });
-        res.redirect('/');
-    } else {
-        res.send("<script>alert('Login yoki parol xato!'); window.location.href='/login';</script>");
-    }
-});
+        :root {
+            --bg-color: #050505;
+            --glass-bg: rgba(20, 20, 22, 0.6);
+            --glass-border: rgba(212, 175, 55, 0.15);
+            --glass-highlight: rgba(255, 255, 255, 0.05);
+            --gold-primary: #D4AF37;
+            --gold-glow: rgba(212, 175, 55, 0.4);
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+            --green-glow: #34d399;
+        }
 
-app.get('/logout', (req, res) => {
-    res.clearCookie('auth');
-    res.redirect('/login');
-});
+        body { 
+            background: radial-gradient(circle at top right, #111115, var(--bg-color) 60%);
+            color: var(--text-main); 
+            font-family: 'Radnika Next', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+            margin: 0; 
+            padding: 40px 20px; 
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
 
-app.get('/', checkAuth, (req, res) => {
-    const usersArray = Object.values(db.users);
-    const totalUsers = usersArray.length;
-    const paidUsers = usersArray.filter(u => u.isPaid).length;
-    const conversion = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : 0;
-    const revenue = paidUsers * 57000;
-
-    let rows = '';
-    usersArray.slice().reverse().forEach(u => {
-        const date = new Date(u.joinedAt).toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' });
-        const status = u.isPaid ? '<span style="color:#4ade80; font-weight:bold;">To\'lov qildi</span>' : '<span style="color:#f87171;">Kutmoqda</span>';
-        rows += `<tr>
-            <td>${u.id}</td>
-            <td>${u.fullName || u.tgName || 'Kiritmadi'}</td>
-            <td>${u.tgUsername ? '@'+u.tgUsername : '-'}</td>
-            <td>${u.phone || '-'}</td>
-            <td>${status}</td>
-            <td>${date}</td>
-        </tr>`;
-    });
-
-    res.send(`
-    <html><head><title>Dashboard | 57 Premium Prompt</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { background: #0f0f11; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding-bottom: 20px; margin-bottom: 30px; }
-        h1 { color: #D4AF37; margin: 0; font-size: 24px; letter-spacing: 1.5px; text-transform: uppercase; }
-        .logout { color: #fff; text-decoration: none; padding: 10px 20px; border: 1px solid #D4AF37; border-radius: 6px; transition: 0.3s; font-weight: 600; font-size: 14px; }
-        .logout:hover { background: #D4AF37; color: #000; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 40px; }
-        .card { background: #1a1a1d; padding: 25px; border-radius: 12px; border-top: 3px solid #D4AF37; box-shadow: 0 5px 15px rgba(0,0,0,0.4); transition: transform 0.3s; }
-        .card:hover { transform: translateY(-5px); }
-        .card h3 { margin: 0 0 10px 0; font-size: 13px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; }
-        .card .value { font-size: 32px; font-weight: 700; color: #fff; }
-        .card .value.gold { color: #D4AF37; }
-        .card .value.green { color: #4ade80; }
-        .table-card { background: #1a1a1d; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.4); border: 1px solid #222; }
+
+        /* HEADER */
+        .header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
+            padding-bottom: 25px; 
+            margin-bottom: 40px; 
+        }
+        h1 { 
+            color: var(--text-main); 
+            margin: 0; 
+            font-size: 26px; 
+            font-weight: 600;
+            letter-spacing: 1px; 
+            text-transform: uppercase; 
+            background: linear-gradient(to right, #fff, #aaa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .logout { 
+            color: var(--text-muted); 
+            text-decoration: none; 
+            padding: 10px 24px; 
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1); 
+            border-radius: 30px; 
+            transition: all 0.4s ease; 
+            font-weight: 500; 
+            font-size: 14px; 
+        }
+        .logout:hover { 
+            background: rgba(255,255,255,0.05); 
+            color: #fff;
+            border-color: rgba(255,255,255,0.2);
+            box-shadow: 0 0 15px rgba(255,255,255,0.05);
+        }
+
+        /* GRID & CARDS (Liquid Glass) */
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); 
+            gap: 24px; 
+            margin-bottom: 50px; 
+        }
+        .card { 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 30px 25px; 
+            border-radius: 20px; 
+            border: 1px solid var(--glass-border);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); 
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); 
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, var(--glass-highlight), transparent);
+            transform: skewX(-20deg);
+            transition: 0.7s;
+        }
+        .card:hover { 
+            transform: translateY(-5px); 
+            border-color: rgba(212, 175, 55, 0.4);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4), 0 0 20px rgba(212, 175, 55, 0.1);
+        }
+        .card:hover::before {
+            left: 200%;
+        }
+
+        .card h3 { 
+            margin: 0 0 15px 0; 
+            font-size: 12px; 
+            color: var(--text-muted); 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px; 
+            font-weight: 500;
+        }
+        .card .value { 
+            font-size: 38px; 
+            font-weight: 700; 
+            color: var(--text-main); 
+            letter-spacing: -0.5px;
+        }
+        .card .value.gold { 
+            background: linear-gradient(135deg, #F3E5AB, #D4AF37, #AA8222);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(212,175,55,0.2);
+        }
+        .card .value.green { color: var(--green-glow); text-shadow: 0 0 15px rgba(52,211,153,0.2); }
+
+        /* TABLE (Soft & Glass) */
+        h2.table-title {
+            color: var(--text-main); 
+            margin-bottom: 24px; 
+            font-size: 18px; 
+            font-weight: 600;
+            letter-spacing: 1px; 
+        }
+        .table-card { 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px; 
+            overflow: hidden; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
+            border: 1px solid rgba(255,255,255,0.05); 
+        }
         table { width: 100%; border-collapse: collapse; text-align: left; }
-        th, td { padding: 16px 20px; border-bottom: 1px solid #222; }
-        th { background: #111; color: #D4AF37; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
-        tr:hover { background: #1f1f23; }
-        td { font-size: 14px; }
+        th, td { padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        th { 
+            background: rgba(0,0,0,0.2); 
+            color: var(--text-muted); 
+            font-weight: 500; 
+            text-transform: uppercase; 
+            font-size: 11px; 
+            letter-spacing: 1.5px; 
+        }
+        tr { transition: background 0.3s; }
+        tr:hover { background: rgba(255,255,255,0.02); }
+        td { font-size: 14px; font-weight: 400; color: #d1d5db; }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .status-paid { background: rgba(52,211,153,0.1); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+        .status-wait { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+
         .table-container { overflow-x: auto; }
+
+        /* RESPONSIVE */
         @media (max-width: 768px) {
-            .header { flex-direction: column; gap: 15px; text-align: center; }
+            .header { flex-direction: column; gap: 20px; text-align: center; }
             .grid { grid-template-columns: 1fr 1fr; }
+            body { padding: 20px 10px; }
         }
         @media (max-width: 480px) {
             .grid { grid-template-columns: 1fr; }
@@ -138,7 +231,7 @@ app.get('/', checkAuth, (req, res) => {
                 <div class="card"><h3>Umumiy Daromad</h3><div class="value gold">${revenue.toLocaleString()} UZS</div></div>
             </div>
 
-            <h2 style="color:#D4AF37; margin-bottom:20px; font-size:18px; letter-spacing: 1px; text-transform: uppercase;">Mijozlar bazasi</h2>
+            <h2 class="table-title">Mijozlar bazasi</h2>
             <div class="table-card">
                 <div class="table-container">
                     <table>
