@@ -15,7 +15,6 @@ const DB_FILE = './users.json';
 
 
 
-let db = { users: {} };
 
 if (fs.existsSync(DB_FILE)) {
     try {
