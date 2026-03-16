@@ -13,14 +13,150 @@ const bot = new Telegraf(BOT_TOKEN);
 const DB_FILE = './users.json';
 
 // Render uchun Port ochish (Web Service xatosini oldini olish)
-const http = require('http');
+// --- ADMIN DASHBOARD (EXPRESS) ---
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const app = express();
 const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running...\n');
-}).listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+const DASHBOARD_USER = process.env.DASHBOARD_USER || 'admin';
+const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'mustafa2026';
+const AUTH_TOKEN = 'secret_2x_premium_token';
+
+// Himoya (Auth)
+function checkAuth(req, res, next) {
+    if (req.cookies.auth === AUTH_TOKEN) return next();
+    res.redirect('/login');
+}
+
+app.get('/login', (req, res) => {
+    res.send(`
+    <html><head><title>Admin Panel | Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { background: #0f0f11; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #1a1a1d; padding: 40px; border-radius: 16px; border: 1px solid #D4AF37; box-shadow: 0 15px 35px rgba(212,175,55,0.15); text-align: center; width: 100%; max-width: 360px; }
+        h2 { color: #D4AF37; margin-bottom: 30px; letter-spacing: 2px; font-weight: 600; }
+        input { width: 100%; padding: 14px; margin-bottom: 20px; background: #0f0f11; border: 1px solid #333; color: #fff; border-radius: 8px; box-sizing: border-box; outline: none; font-size: 16px; transition: 0.3s; }
+        input:focus { border-color: #D4AF37; box-shadow: 0 0 8px rgba(212,175,55,0.3); }
+        button { width: 100%; padding: 14px; background: linear-gradient(135deg, #D4AF37, #AA8222); color: #000; border: none; border-radius: 8px; font-weight: 700; font-size: 16px; letter-spacing: 1px; cursor: pointer; transition: 0.3s; }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+    </style></head><body>
+        <div class="card">
+            <h2>ADMIN PANEL</h2>
+            <form method="POST" action="/login">
+                <input type="text" name="username" placeholder="Login" required>
+                <input type="password" name="password" placeholder="Parol" required>
+                <button type="submit">KIRISH</button>
+            </form>
+        </div>
+    </body></html>
+    `);
 });
+
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === DASHBOARD_USER && password === DASHBOARD_PASS) {
+        res.cookie('auth', AUTH_TOKEN, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true });
+        res.redirect('/');
+    } else {
+        res.send("<script>alert('Login yoki parol xato!'); window.location.href='/login';</script>");
+    }
+});
+
+app.get('/logout', (req, res) => {
+    res.clearCookie('auth');
+    res.redirect('/login');
+});
+
+app.get('/', checkAuth, (req, res) => {
+    const usersArray = Object.values(db.users);
+    const totalUsers = usersArray.length;
+    const paidUsers = usersArray.filter(u => u.isPaid).length;
+    const conversion = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : 0;
+    const revenue = paidUsers * 57000;
+
+    let rows = '';
+    usersArray.slice().reverse().forEach(u => {
+        const date = new Date(u.joinedAt).toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' });
+        const status = u.isPaid ? '<span style="color:#4ade80; font-weight:bold;">To\'lov qildi</span>' : '<span style="color:#f87171;">Kutmoqda</span>';
+        rows += `<tr>
+            <td>${u.id}</td>
+            <td>${u.fullName || u.tgName || 'Kiritmadi'}</td>
+            <td>${u.tgUsername ? '@'+u.tgUsername : '-'}</td>
+            <td>${u.phone || '-'}</td>
+            <td>${status}</td>
+            <td>${date}</td>
+        </tr>`;
+    });
+
+    res.send(`
+    <html><head><title>Dashboard | 57 Premium Prompt</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { background: #0f0f11; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding-bottom: 20px; margin-bottom: 30px; }
+        h1 { color: #D4AF37; margin: 0; font-size: 24px; letter-spacing: 1.5px; text-transform: uppercase; }
+        .logout { color: #fff; text-decoration: none; padding: 10px 20px; border: 1px solid #D4AF37; border-radius: 6px; transition: 0.3s; font-weight: 600; font-size: 14px; }
+        .logout:hover { background: #D4AF37; color: #000; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 40px; }
+        .card { background: #1a1a1d; padding: 25px; border-radius: 12px; border-top: 3px solid #D4AF37; box-shadow: 0 5px 15px rgba(0,0,0,0.4); transition: transform 0.3s; }
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { margin: 0 0 10px 0; font-size: 13px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 32px; font-weight: 700; color: #fff; }
+        .card .value.gold { color: #D4AF37; }
+        .card .value.green { color: #4ade80; }
+        .table-card { background: #1a1a1d; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.4); border: 1px solid #222; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 16px 20px; border-bottom: 1px solid #222; }
+        th { background: #111; color: #D4AF37; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+        tr:hover { background: #1f1f23; }
+        td { font-size: 14px; }
+        .table-container { overflow-x: auto; }
+        @media (max-width: 768px) {
+            .header { flex-direction: column; gap: 15px; text-align: center; }
+            .grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 480px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style></head><body>
+        <div class="container">
+            <div class="header">
+                <h1>SOTUVLAR STATISTIKASI</h1>
+                <a href="/logout" class="logout">Tizimdan chiqish</a>
+            </div>
+            
+            <div class="grid">
+                <div class="card"><h3>Jami obunachilar</h3><div class="value">${totalUsers}</div></div>
+                <div class="card"><h3>To'lov qilganlar</h3><div class="value green">${paidUsers}</div></div>
+                <div class="card"><h3>Konversiya</h3><div class="value">${conversion}%</div></div>
+                <div class="card"><h3>Umumiy Daromad</h3><div class="value gold">${revenue.toLocaleString()} UZS</div></div>
+            </div>
+
+            <h2 style="color:#D4AF37; margin-bottom:20px; font-size:18px; letter-spacing: 1px; text-transform: uppercase;">Mijozlar bazasi</h2>
+            <div class="table-card">
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>ID</th><th>Ism</th><th>Username</th><th>Raqam</th><th>Holat</th><th>Sana</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </body></html>
+    `);
+});
+
+app.listen(PORT, () => {
+    console.log(`Dashboard Server running on port ${PORT}`);
+});
+// --- END ADMIN DASHBOARD ---
+
 
 let db = { users: {} };
 
