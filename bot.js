@@ -262,6 +262,10 @@ process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 
 
+
+
+
+
 // --- ADMIN DASHBOARD (EXPRESS) ---
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -324,9 +328,12 @@ app.get('/logout', (req, res) => {
 
 app.get('/', checkAuth, (req, res) => {
     try {
-        // Global db ishlatiladi
+        let usersArray = [];
+        // `db` global o'zgaruvchisi borligiga ishonch hosil qilish
+        if (typeof db !== 'undefined' && db.users) {
+            usersArray = Object.values(db.users);
+        }
         
-        const usersArray = Object.values(db.users);
         const totalUsers = usersArray.length;
         const paidUsers = usersArray.filter(u => u && u.isPaid).length;
         const conversion = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : 0;
