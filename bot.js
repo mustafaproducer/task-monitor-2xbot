@@ -29,9 +29,20 @@ const userSchema = new mongoose.Schema({
     joinedAt: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', userSchema);
+const Redis = require('ioredis');
 
-// getUser funksiyasini MongoDB ga moslash (Asinxron)
+// Redis ulanishi
+const redis = new Redis(process.env.REDIS_URL);
+redis.on('error', (err) => console.error('❌ Redis xatosi:', err));
+redis.on('connect', () => console.log('🚀 Redis-ga muvaffaqiyatli ulandi!'));
+
+// Redis bilan keshlashtirilgan getDBUser
 async function getDBUser(id, first_name, username) {
+    const cachedUser = await redis.get(`user:${id}`);
+    if (cachedUser) {
+        return JSON.parse(cachedUser);
+    }
+
     let user = await User.findOne({ id: String(id) });
     if (!user) {
         user = new User({
@@ -40,7 +51,31 @@ async function getDBUser(id, first_name, username) {
             username: username || '',
             step: 'START'
         });
-        await user.save();
+        await saveUser(user);
+    }
+    
+    // Ma'lumotni 1 soatga keshga saqlash
+    await redis.set(`user:${id}`, JSON.stringify(user), 'EX', 3600);
+    return user;
+}
+
+// Ma'lumot o'zgarganda keshni yangilash uchun yordamchi funksiya
+async function saveUser(user) {
+    await saveUser(user);
+    await redis.set(`user:${user.id}`, JSON.stringify(user), 'EX', 3600);
+}
+
+
+// getUser funksiyasini MongoDB ga moslash (Asinxron)
+);
+    if (!user) {
+        user = new User({
+            id: String(id),
+            name: first_name || "Do'st",
+            username: username || '',
+            step: 'START'
+        });
+        await saveUser(user);
     }
     return user;
 }
