@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 const CHANNEL_ID = process.env.CHANNEL_ID;
+const CORE_CHANNEL_ID = process.env.CORE_CHANNEL_ID || '-1002340332822'; // 57 ta prompt kanali
 const SALES_GROUP_ID = process.env.SALES_GROUP_ID;
 const CARD_NUMBER = process.env.CARD_NUMBER || "4073 4200 8249 5759 (Avazxonov S)";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@azaayd';
@@ -69,10 +70,11 @@ async function getDBUser(id, first_name, username) {
 
 async function saveUser(user) {
     try {
-        if (user.save) {
+        // Mongoose document bo'lsa .save() ishlatsa bo'ladi, aks holda findOneAndUpdate
+        if (typeof user.save === 'function') {
             await user.save();
         } else {
-            await User.findOneAndUpdate({ id: user.id }, user);
+            await User.findOneAndUpdate({ id: user.id }, user, { upsert: true });
         }
         await redis.set(`user:${user.id}`, JSON.stringify(user), 'EX', 3600);
     } catch (err) {
@@ -98,7 +100,7 @@ bot.start(async (ctx) => {
     await ctx.reply(
         "👋 Assalomu alaykum! Siz bu yerda Instagramda kontent qiluvchilar uchun maxsus tayyorlangan 57 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
         "👇 Iltimos, Ismingizni kiriting (Masalan: Alisher)🔥",
-        Markup.removeKeyboard()
+        { ...Markup.removeKeyboard() }
     );
 });
 
@@ -143,6 +145,7 @@ bot.command('broadcast', async (ctx) => {
 });
 
 bot.on('message', async (ctx) => {
+    // Admin uchun File ID olish
     if (ctx.message.document || ctx.message.video || ctx.message.video_note) {
         if (String(ctx.from.id) === String(ADMIN_ID)) {
             const fileId = ctx.message.document?.file_id || ctx.message.video?.file_id || ctx.message.video_note?.file_id;
@@ -225,7 +228,7 @@ bot.on('callback_query', async (ctx) => {
         if (action === 'approve') {
             try {
                 const expireDate = Math.floor(Date.now() / 1000) + 86400;
-                const linkRes = await ctx.telegram.createChatInviteLink(CHANNEL_ID, {
+                const linkRes = await ctx.telegram.createChatInviteLink(CHANNEL_ID || CORE_CHANNEL_ID, {
                     member_limit: 1,
                     expire_date: expireDate
                 });
@@ -245,7 +248,7 @@ bot.on('callback_query', async (ctx) => {
                 await ctx.editMessageCaption(oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "✅ TASDIQLANDI"));
             } catch (err) {
                 console.error("Link error:", err);
-                await ctx.answerCbQuery("Xatolik! Bot adminmi?");
+                await ctx.answerCbQuery("Xatolik! Bot kanalga to'liq adminmi?");
             }
         } else {
             await ctx.telegram.sendMessage(targetUserId, `❌ Kechirasiz, to'lovingiz tasdiqlanmadi. Admin: ${ADMIN_USERNAME}`);
