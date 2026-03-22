@@ -1,6 +1,12 @@
 require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
-const fs = require('fs');
+const mongoose = require('mongoose');
+const Redis = require('ioredis');
+const express = require('express');
+const auth = require('basic-auth');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
@@ -8,18 +14,21 @@ const CHANNEL_ID = process.env.CHANNEL_ID;
 const SALES_GROUP_ID = process.env.SALES_GROUP_ID;
 const CARD_NUMBER = process.env.CARD_NUMBER || "4073 4200 8249 5759 (Avazxonov S)";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '@azaayd';
+const MONGODB_URI = process.env.MONGODB_URI;
+const REDIS_URL = process.env.REDIS_URL;
 
-const bot = new Telegraf(BOT_TOKEN);
-const mongoose = require('mongoose');
+if (!MONGODB_URI || !REDIS_URL) {
+    console.error("❌ XATO: MONGODB_URI yoki REDIS_URL aniqlanmadi!");
+    process.exit(1);
+}
 
-// MongoDB ulanishi
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://mustafaproducer:2xsalesbot@cluster0.doozy98.mongodb.net/?appName=Cluster0')
-    .then(() => console.log('✅ MongoDB muvaffaqiyatli ulandi!'))
-    .catch(err => console.error('❌ MongoDB ulanishida xato:', err));
+// --- DATABASE SETUP ---
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('✅ MongoDB connected'))
+    .catch(err => console.error('❌ MongoDB error:', err));
 
-// Foydalanuvchi sxemasi
 const userSchema = new mongoose.Schema({
-    id: { type: String, unique: true },
+    id: { type: String, unique: true, index: true },
     name: String,
     username: String,
     fullName: String,
@@ -29,156 +38,273 @@ const userSchema = new mongoose.Schema({
     joinedAt: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', userSchema);
-const Redis = require('ioredis');
 
-// Redis ulanishi
-const redis = new Redis(process.env.REDIS_URL);
-redis.on('error', (err) => console.error('❌ Redis xatosi:', err));
-redis.on('connect', () => console.log('🚀 Redis-ga muvaffaqiyatli ulandi!'));
+// --- REDIS SETUP ---
+const redis = new Redis(REDIS_URL);
+redis.on('error', (err) => console.error('❌ Redis error:', err));
+redis.on('connect', () => console.log('🚀 Redis connected'));
 
-// Redis bilan keshlashtirilgan getDBUser
+// --- HELPERS ---
 async function getDBUser(id, first_name, username) {
-    const cachedUser = await redis.get(`user:${id}`);
-    if (cachedUser) {
-        return JSON.parse(cachedUser);
-    }
+    try {
+        const cachedUser = await redis.get(`user:${id}`);
+        if (cachedUser) return JSON.parse(cachedUser);
 
-    let user = await User.findOne({ id: String(id) });
-    if (!user) {
-        user = new User({
-            id: String(id),
-            name: first_name || "Do'st",
-            username: username || '',
-            step: 'START'
-        });
-        await saveUser(user);
+        let user = await User.findOne({ id: String(id) });
+        if (!user) {
+            user = new User({
+                id: String(id),
+                name: first_name || "Do'st",
+                username: username || '',
+                step: 'START'
+            });
+            await user.save();
+        }
+        await redis.set(`user:${id}`, JSON.stringify(user), 'EX', 3600);
+        return user;
+    } catch (err) {
+        console.error("getDBUser error:", err);
+    }
+}
+
+async function saveUser(user) {
+    try {
+        if (user.save) {
+            await user.save();
+        } else {
+            await User.findOneAndUpdate({ id: user.id }, user);
+        }
+        await redis.set(`user:${user.id}`, JSON.stringify(user), 'EX', 3600);
+    } catch (err) {
+        console.error("saveUser error:", err);
+    }
+}
+
+// --- BOT LOGIC ---
+const bot = new Telegraf(BOT_TOKEN);
+
+bot.start(async (ctx) => {
+    const user = await getDBUser(ctx.from.id, ctx.from.first_name, ctx.from.username);
+    user.step = 'ASK_NAME';
+    await saveUser(user);
+
+    try {
+        const fileId = process.env.START_VIDEO_ID; 
+        if(fileId) await ctx.replyWithVideoNote(fileId);
+    } catch (e) {
+        console.log('Video note error:', e.message);
     }
     
-    // Ma'lumotni 1 soatga keshga saqlash
-    await redis.set(`user:${id}`, JSON.stringify(user), 'EX', 3600);
-    return user;
-}
+    await ctx.reply(
+        "👋 Assalomu alaykum! Siz bu yerda Instagramda kontent qiluvchilar uchun maxsus tayyorlangan 57 ta eng sara Premium Promptlarni qo'lga kiritishingiz mumkin.\n\n" +
+        "👇 Iltimos, Ismingizni kiriting (Masalan: Alisher)🔥",
+        Markup.removeKeyboard()
+    );
+});
 
-// Ma'lumot o'zgarganda keshni yangilash uchun yordamchi funksiya
-async function saveUser(user) {
-    await saveUser(user);
-    await redis.set(`user:${user.id}`, JSON.stringify(user), 'EX', 3600);
-}
+bot.command('export', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    
+    const users = await User.find().lean();
+    let csv = "ID,Name,Username,FullName,Phone,JoinedAt,IsPaid\n";
+    users.forEach(u => {
+        csv += `${u.id},"${u.name}","${u.username}","${u.fullName || ''}","${u.phone || ''}",${u.joinedAt},${u.isPaid}\n`;
+    });
+    
+    const fs = require('fs');
+    fs.writeFileSync('users_export.csv', csv);
+    await ctx.replyWithDocument({ source: 'users_export.csv', filename: 'Foydalanuvchilar_Bazasi.csv' });
+});
 
+bot.command('admin', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const totalUsers = await User.countDocuments();
+    const paidUsers = await User.countDocuments({ isPaid: true });
+    
+    ctx.reply(`📊 Statistika\n\n👥 Jami foydalanuvchilar: ${totalUsers}\n✅ To'lov qilganlar: ${paidUsers}\n\n📥 Bazani olish: /export\n📢 Xabar yuborish: /broadcast [matn]`);
+});
 
-// getUser funksiyasini MongoDB ga moslash (Asinxron)
-);
-    if (!user) {
-        user = new User({
-            id: String(id),
-            name: first_name || "Do'st",
-            username: username || '',
-            step: 'START'
-        });
-        await saveUser(user);
+bot.command('broadcast', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const msg = ctx.message.text.split(' ').slice(1).join(' ');
+    if (!msg) return ctx.reply("Matn kiriting! Yozilish tartibi: /broadcast Salom hammaga");
+    
+    const users = await User.find().select('id').lean();
+    ctx.reply(`⏳ Xabar yuborilmoqda... (${users.length} foydalanuvchiga)`);
+    
+    let success = 0;
+    for (const u of users) {
+        try {
+            await ctx.telegram.sendMessage(u.id, msg);
+            success++;
+        } catch (e) {}
     }
-    return user;
-}
+    await ctx.reply(`✅ Xabar muvaffaqiyatli ${success} kishiga yuborildi.`);
+});
 
+bot.on('message', async (ctx) => {
+    if (ctx.message.document || ctx.message.video || ctx.message.video_note) {
+        if (String(ctx.from.id) === String(ADMIN_ID)) {
+            const fileId = ctx.message.document?.file_id || ctx.message.video?.file_id || ctx.message.video_note?.file_id;
+            if (fileId) {
+                return ctx.reply(`ID: \`${fileId}\``, { parse_mode: 'Markdown' });
+            }
+        }
+    }
 
+    if (ctx.chat.type !== 'private') return;
+    const user = await getDBUser(ctx.from.id, ctx.from.first_name, ctx.from.username);
 
-            
+    if (user.step === 'ASK_NAME' && ctx.message.text) {
+        user.fullName = ctx.message.text;
+        user.step = 'ASK_PHONE';
+        await saveUser(user);
+        
+        await ctx.reply(`Rahmat, ${user.fullName}!\n\nRaqamingizni quyidagi tugma orqali yuboring 👇`, 
+            Markup.keyboard([
+                [Markup.button.contactRequest("📱 Raqamni yuborish")]
+            ]).oneTime().resize()
+        );
+        return;
+    }
+
+    if (user.step === 'ASK_PHONE' && (ctx.message.contact || ctx.message.text)) {
+        user.phone = ctx.message.contact ? ctx.message.contact.phone_number : ctx.message.text;
+        user.step = 'WAIT_FOR_PAYMENT';
+        await saveUser(user);
+        
+        await ctx.reply(
+            `✅ Raqamingiz qabul qilindi.\n\n` +
+            `🎁 57 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
+            `💳 Ushbu kartaga 57,000 so'm o'tkazing:\n` +
+            `\`${CARD_NUMBER}\`\n\n` +
+            `📸 So'ngra to'lov skrinshotini (chekini) shu botga rasm qilib tashlang!`,
+            { parse_mode: 'Markdown', ...Markup.removeKeyboard() }
+        );
+        return;
+    }
+
+    if (user.step === 'WAIT_FOR_PAYMENT' && ctx.message.photo) {
+        const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+        
+        await ctx.reply("⏳ Skrinshot qabul qilindi! Admin tasdiqlashini kuting. Tasdiqlangach, maxsus guruhga link beriladi.");
+        
+        await ctx.telegram.sendPhoto(SALES_GROUP_ID, photoId, {
+            caption: `🔔 YANGI TO'LOV KELDI!\n\n` +
+                     `👤 Mijoz: ${user.fullName} (@${user.username || 'yoq'})\n` +
+                     `📞 Raqam: ${user.phone}\n` +
+                     `🆔 ID: ${user.id}`,
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '✅ Tasdiqlash', callback_data: `approve_${user.id}` }],
+                    [{ text: '❌ Rad etish', callback_data: `reject_${user.id}` }]
+                ]
+            }
+        });
+        return;
+    }
+
+    if (user.step === 'WAIT_FOR_PAYMENT' && ctx.message.text) {
+        await ctx.reply(
+            `Iltimos, to'lov skrinshotini (rasm qilib) yuboring.\n\n` +
+            `💳 Karta: \`${CARD_NUMBER}\` (57,000 so'm)`,
+            { parse_mode: 'Markdown', ...Markup.removeKeyboard() }
+        );
+    }
+});
+
+bot.on('callback_query', async (ctx) => {
+    const data = ctx.callbackQuery.data;
+    
+    if (data.startsWith('approve_') || data.startsWith('reject_')) {
+        const action = data.split('_')[0];
+        const targetUserId = data.split('_')[1];
+        const targetUser = await User.findOne({ id: targetUserId });
+
+        if (action === 'approve') {
+            try {
+                const expireDate = Math.floor(Date.now() / 1000) + 86400;
+                const linkRes = await ctx.telegram.createChatInviteLink(CHANNEL_ID, {
+                    member_limit: 1,
+                    expire_date: expireDate
+                });
+                
+                await ctx.telegram.sendMessage(targetUserId, 
+                    `🎉 To'lovingiz tasdiqlandi, kutganingiz uchun rahmat!\n\n` +
+                    `Mana sizga yopiq kanal uchun maxsus link:\n🔗 ${linkRes.invite_link}\n\n` +
+                    `⚠️ Bu link faqat "BIR MARTA" ishlaydi va "24 soat" ichida kuyadi!`
+                );
+                
+                if(targetUser) {
+                    targetUser.isPaid = true;
+                    await saveUser(targetUser);
+                }
+                
+                const oldCaption = ctx.callbackQuery.message.caption || '';
+                await ctx.editMessageCaption(oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "✅ TASDIQLANDI"));
+            } catch (err) {
+                console.error("Link error:", err);
+                await ctx.answerCbQuery("Xatolik! Bot adminmi?");
+            }
+        } else {
+            await ctx.telegram.sendMessage(targetUserId, `❌ Kechirasiz, to'lovingiz tasdiqlanmadi. Admin: ${ADMIN_USERNAME}`);
+            const oldCaption = ctx.callbackQuery.message.caption || '';
+            await ctx.editMessageCaption(oldCaption.replace("🔔 YANGI TO'LOV KELDI!", "❌ RAD ETILDI"));
+        }
+        await ctx.answerCbQuery();
+    }
+});
+
+// --- ADMIN DASHBOARD ---
+app.get('/dashboard', async (req, res) => {
+    const credentials = auth(req);
+    if (!credentials || credentials.name !== '2xstat' || credentials.pass !== 'saleofprompts') {
+        res.setHeader('WWW-Authenticate', 'Basic realm="example"');
+        return res.status(401).send('Access denied');
+    }
+
+    try {
+        const users = await User.find().sort({ joinedAt: -1 }).lean();
+        const totalUsers = users.length;
+        const paidUsers = users.filter(u => u.isPaid).length;
+        const revenue = paidUsers * 57000;
+        const conversion = totalUsers > 0 ? ((paidUsers / totalUsers) * 100).toFixed(1) : 0;
+
+        let rows = '';
+        users.forEach(u => {
+            const date = new Date(u.joinedAt).toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' });
             const status = u.isPaid ? '<span class="status-badge status-paid">TO\'LOV QILDI</span>' : '<span class="status-badge status-wait">KUTMOQDA</span>';
-            rows += `<tr>
-                <td>${u.id || '-'}</td>
-                <td>${u.fullName || u.tgName || 'Kiritmadi'}</td>
-                <td>${u.tgUsername ? '@'+u.tgUsername : '-'}</td>
-                <td>${u.phone || '-'}</td>
-                <td>${status}</td>
-                <td>${dateStr}</td>
-            </tr>`;
+            rows += `<tr><td>${u.id}</td><td>${u.fullName || u.name}</td><td>${u.username ? '@'+u.username : '-'}</td><td>${u.phone || '-'}</td><td>${status}</td><td>${date}</td></tr>`;
         });
 
         res.send(`
-        <!DOCTYPE html>
-        <html><head><title>Dashboard | 57 Premium Prompt</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            @font-face { font-family: 'Radnika Next'; src: local('Radnika Next'), local('Helvetica Neue'), local('Inter'), sans-serif; font-weight: normal; }
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-            
-            :root {
-                --bg-color: #050505;
-                --glass-bg: rgba(20, 20, 22, 0.6);
-                --glass-border: rgba(212, 175, 55, 0.15);
-                --glass-highlight: rgba(255, 255, 255, 0.05);
-                --gold-primary: #D4AF37;
-                --text-main: #F3F4F6;
-                --text-muted: #9CA3AF;
-            }
-            
-            body { 
-                background: radial-gradient(circle at top right, #111115, var(--bg-color) 60%);
-                color: var(--text-main); 
-                font-family: 'Radnika Next', 'Inter', sans-serif; 
-                margin: 0; padding: 40px 20px; min-height: 100vh;
-                -webkit-font-smoothing: antialiased;
-            }
-            .container { max-width: 1200px; margin: 0 auto; }
-            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 25px; margin-bottom: 40px; }
-            h1 { color: var(--text-main); margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(to right, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-            .logout { color: var(--text-muted); text-decoration: none; padding: 10px 24px; background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 30px; transition: all 0.4s ease; font-weight: 500; font-size: 14px; }
-            .logout:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); box-shadow: 0 0 15px rgba(255,255,255,0.05); }
-            
-            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 50px; }
-            .card { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 30px 25px; border-radius: 20px; border: 1px solid var(--glass-border); border-top: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.3); transition: all 0.4s ease; position: relative; overflow: hidden; }
-            .card:hover { transform: translateY(-5px); border-color: rgba(212, 175, 55, 0.4); box-shadow: 0 15px 40px rgba(0,0,0,0.4), 0 0 20px rgba(212, 175, 55, 0.1); }
-            .card h3 { margin: 0 0 15px 0; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 500; }
-            .card .value { font-size: 38px; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px; }
-            .card .value.gold { background: linear-gradient(135deg, #F3E5AB, #D4AF37, #AA8222); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 20px rgba(212,175,55,0.2); }
-            .card .value.green { color: #34d399; text-shadow: 0 0 15px rgba(52,211,153,0.2); }
-            
-            h2.table-title { color: var(--text-main); margin-bottom: 24px; font-size: 18px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-            .table-card { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); }
-            table { width: 100%; border-collapse: collapse; text-align: left; }
-            th, td { padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-            th { background: rgba(0,0,0,0.2); color: var(--text-muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 1.5px; }
-            tr { transition: background 0.3s; }
-            tr:hover { background: rgba(255,255,255,0.02); }
-            td { font-size: 14px; font-weight: 400; color: #d1d5db; }
-            .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; display: inline-block; }
-            .status-paid { background: rgba(52,211,153,0.1); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
-            .status-wait { background: rgba(248,113,113,0.1); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
-            .table-container { overflow-x: auto; }
-            
-            @media (max-width: 768px) { .header { flex-direction: column; gap: 20px; text-align: center; } .grid { grid-template-columns: 1fr 1fr; } body { padding: 20px 10px; } }
-            @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
-        </style></head><body>
-            <div class="container">
-                <div class="header">
-                    <h1>SOTUVLAR STATISTIKASI</h1>
-                    <a href="/logout" class="logout">Tizimdan chiqish</a>
-                </div>
+            <!DOCTYPE html><html><head><title>Dashboard</title>
+            <style>
+                body { background: #050505; color: #F3F4F6; font-family: sans-serif; padding: 20px; }
+                .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+                .card { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 10px; border: 1px solid rgba(212,175,55,0.2); }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { padding: 12px; border-bottom: 1px solid #333; text-align: left; }
+                .status-paid { color: #34d399; } .status-wait { color: #f87171; }
+            </style></head>
+            <body>
+                <h1>DASHBOARD</h1>
                 <div class="grid">
-                    <div class="card"><h3>Jami obunachilar</h3><div class="value">${totalUsers}</div></div>
-                    <div class="card"><h3>To'lov qilganlar</h3><div class="value green">${paidUsers}</div></div>
-                    <div class="card"><h3>Konversiya</h3><div class="value">${conversion}%</div></div>
-                    <div class="card"><h3>Umumiy Daromad</h3><div class="value gold">${revenue.toLocaleString()} UZS</div></div>
+                    <div class="card"><h3>Jami</h3><div>${totalUsers}</div></div>
+                    <div class="card"><h3>To'langan</h3><div>${paidUsers}</div></div>
+                    <div class="card"><h3>Konversiya</h3><div>${conversion}%</div></div>
+                    <div class="card"><h3>Daromad</h3><div>${revenue.toLocaleString()} UZS</div></div>
                 </div>
-                <h2 class="table-title">Mijozlar bazasi</h2>
-                <div class="table-card">
-                    <div class="table-container">
-                        <table>
-                            <thead><tr><th>ID</th><th>Ism</th><th>Username</th><th>Raqam</th><th>Holat</th><th>Sana</th></tr></thead>
-                            <tbody>${rows}</tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </body></html>
+                <table><thead><tr><th>ID</th><th>Ism</th><th>User</th><th>Tel</th><th>Status</th><th>Sana</th></tr></thead>
+                <tbody>${rows}</tbody></table>
+            </body></html>
         `);
-    } catch (error) {
-        console.error('DASHBOARD ERROR:', error);
-        res.status(500).send(`<h1>Xatolik yuz berdi</h1><p>${error.message}</p>`);
-    }
+    } catch (e) { res.status(500).send(e.message); }
 });
 
-app.listen(PORT, () => {
-    console.log(`Dashboard Server running on port ${PORT}`);
-});
-// --- END ADMIN DASHBOARD ---
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+bot.launch().then(() => console.log("Bot started!"));
+
+process.once('SIGINT', () => { bot.stop('SIGINT'); process.exit(0); });
+process.once('SIGTERM', () => { bot.stop('SIGTERM'); process.exit(0); });
