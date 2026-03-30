@@ -201,12 +201,65 @@ bot.on('callback_query', async (ctx) => {
 });
 
 // --- ADMIN DASHBOARD ---
-app.get('/dashboard', async (req, res) => {
-    const creds = auth(req);
-    if (!creds || creds.name !== '2xstat' || creds.pass !== 'saleofprompts') {
-        res.setHeader('WWW-Authenticate', 'Basic realm="Admin"');
-        return res.status(401).send('Access denied');
+const cookieParser = require('cookie-parser');
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+const DASHBOARD_USER = process.env.DASHBOARD_USER || '2xstat';
+const DASHBOARD_PASS = process.env.DASHBOARD_PASS || 'saleofprompts';
+const AUTH_TOKEN = 'secret_2x_premium_token';
+
+function checkAuth(req, res, next) {
+    if (req.cookies.auth === AUTH_TOKEN) return next();
+    res.redirect('/login');
+}
+
+app.get('/login', (req, res) => {
+    res.send(`
+    <!DOCTYPE html>
+    <html><head><title>Admin Panel | Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        @font-face { font-family: 'Radnika Next'; src: local('Radnika Next'), local('Helvetica Neue'), local('Inter'), sans-serif; font-weight: normal; }
+        body { background: #050505; color: #fff; font-family: 'Radnika Next', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: rgba(20, 20, 22, 0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 40px; border-radius: 20px; border: 1px solid rgba(212, 175, 55, 0.15); box-shadow: 0 15px 35px rgba(0,0,0,0.5); text-align: center; width: 100%; max-width: 360px; }
+        h2 { color: #D4AF37; margin-bottom: 30px; letter-spacing: 2px; font-weight: 600; text-transform: uppercase; }
+        input { width: 100%; padding: 14px; margin-bottom: 20px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px; box-sizing: border-box; outline: none; font-size: 16px; transition: 0.3s; }
+        input:focus { border-color: #D4AF37; box-shadow: 0 0 10px rgba(212,175,55,0.2); }
+        button { width: 100%; padding: 14px; background: linear-gradient(135deg, #D4AF37, #AA8222); color: #000; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; letter-spacing: 1px; cursor: pointer; transition: 0.3s; }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+    </style></head><body>
+        <div class="card">
+            <h2>ADMIN PANEL</h2>
+            <form method="POST" action="/login">
+                <input type="text" name="username" placeholder="Login" required>
+                <input type="password" name="password" placeholder="Parol" required>
+                <button type="submit">KIRISH</button>
+            </form>
+        </div>
+    </body></html>
+    `);
+});
+
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === DASHBOARD_USER && password === DASHBOARD_PASS) {
+        res.cookie('auth', AUTH_TOKEN, { maxAge: 24 * 60 * 60 * 1000, httpOnly: true });
+        res.redirect('/dashboard');
+    } else {
+        res.send("<script>alert('Login yoki parol xato!'); window.location.href='/login';</script>");
     }
+});
+
+app.get('/logout', (req, res) => {
+    res.clearCookie('auth');
+    res.redirect('/login');
+});
+
+// Redirect root to dashboard
+app.get('/', (req, res) => res.redirect('/dashboard'));
+
+app.get('/dashboard', checkAuth, async (req, res) => {
     try {
         const users = await User.find().sort({ joinedAt: -1 }).limit(100).lean();
         const total = await User.countDocuments();
@@ -226,6 +279,8 @@ app.get('/dashboard', async (req, res) => {
             .container { max-width: 1200px; margin: 0 auto; }
             .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 25px; margin-bottom: 40px; }
             h1 { color: var(--text-main); margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(to right, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+            .logout { color: var(--text-muted); text-decoration: none; padding: 10px 24px; background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 30px; transition: all 0.4s ease; font-weight: 500; font-size: 14px; }
+            .logout:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.2); box-shadow: 0 0 15px rgba(255,255,255,0.05); }
             .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 50px; }
             .card { background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 30px 25px; border-radius: 20px; border: 1px solid var(--glass-border); border-top: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.3); transition: all 0.4s ease; }
             .card:hover { transform: translateY(-5px); border-color: rgba(212, 175, 55, 0.4); box-shadow: 0 15px 40px rgba(0,0,0,0.4), 0 0 20px rgba(212, 175, 55, 0.1); }
@@ -251,6 +306,7 @@ app.get('/dashboard', async (req, res) => {
             <div class="container">
                 <div class="header">
                     <h1>SOTUVLAR STATISTIKASI</h1>
+                    <a href="/logout" class="logout">Tizimdan chiqish</a>
                 </div>
                 <div class="grid">
                     <div class="card"><h3>Jami obunachilar</h3><div class="value">${total}</div></div>
