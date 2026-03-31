@@ -152,13 +152,17 @@ bot.on('message', async (ctx) => {
         user.phone = ctx.message.contact ? ctx.message.contact.phone_number : ctx.message.text;
         user.step = 'WAIT_FOR_PAYMENT';
         await saveUser(user);
-        return ctx.reply(
-            `✅ Raqamingiz qabul qilindi.\n\n` +
-            `🎁 57 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
-            `💳 Ushbu kartaga 57,000 so'm o'tkazing:\n` +
-            `\`${config.cardNumber}\`\n\n` +
-            `📸 So'ngra to'lov skrinshotini (chekini) rasm qilib yuboring!`,
-            { parse_mode: 'Markdown', ...Markup.removeKeyboard() }
+        return ctx.replyWithPhoto(
+            { source: 'poster.png' },
+            {
+                caption: `✅ Raqamingiz qabul qilindi.\n\n` +
+                         `🎁 57 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
+                         `💳 Ushbu kartaga 57,000 so'm o'tkazing:\n` +
+                         `\`${config.cardNumber}\`\n\n` +
+                         `📸 So'ngra to'lov skrinshotini (chekini) rasm qilib yuboring!`,
+                parse_mode: 'Markdown',
+                ...Markup.removeKeyboard()
+            }
         );
     }
 
