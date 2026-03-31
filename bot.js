@@ -159,7 +159,8 @@ bot.on('message', async (ctx) => {
                          `🎁 57 ta Premium Promptlarni qo'lga kiritish uchun:\n\n` +
                          `💳 Ushbu kartaga 57,000 so'm o'tkazing:\n` +
                          `\`${config.cardNumber}\`\n\n` +
-                         `📸 So'ngra to'lov skrinshotini (chekini) rasm qilib yuboring!`,
+                         `📸 So'ngra to'lov skrinshotini (chekini) rasm qilib yuboring!\n\n` +
+                         `♻️ Boshidan boshlash uchun /start buyrug'ini bosing.`,
                 parse_mode: 'Markdown',
                 ...Markup.removeKeyboard()
             }
@@ -168,14 +169,23 @@ bot.on('message', async (ctx) => {
 
     if (user.step === 'WAIT_FOR_PAYMENT' && ctx.message.photo) {
         const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        await ctx.reply("⏳ Skrinshot qabul qilindi! Admin tasdiqlashini kuting.");
+        
+        const adminUser = config.adminUsername ? config.adminUsername.replace('@', '') : 'admin';
+        await ctx.reply("⏳ Skrinshot qabul qilindi! Admin tasdiqlashini kuting.", {
+            reply_markup: {
+                inline_keyboard: [[{ text: "👨‍💻 Admin bilan bog'lanish", url: `https://t.me/${adminUser}` }]]
+            }
+        });
+        
         return ctx.telegram.sendPhoto(config.salesGroupId, photoId, {
             caption: `🔔 *YANGI TO'LOV*\n\n👤: ${user.fullName} (@${user.username || 'yoq'})\n📞: ${user.phone}\n🆔: ${user.id}`,
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '✅ Tasdiqlash', callback_data: `approve_${user.id}` }],
-                    [{ text: '❌ Rad etish', callback_data: `reject_${user.id}` }]
+                    [
+                        { text: '✅ Tasdiqlash', callback_data: `approve_${user.id}` },
+                        { text: '❌ Rad etish', callback_data: `reject_${user.id}` }
+                    ]
                 ]
             }
         });
@@ -196,10 +206,12 @@ bot.on('callback_query', async (ctx) => {
             await ctx.telegram.sendMessage(uid, `🎉 To'lovingiz tasdiqlandi!\n\n🔗 Havola: ${link.invite_link}\n\n⚠️ Faqat bir marta ishlaydi!`);
             if (targetUser) { targetUser.isPaid = true; await targetUser.save(); await redis.del(`user:${uid}`); }
             await ctx.editMessageCaption(ctx.callbackQuery.message.caption.replace("🔔 YANGI TO'LOV", "✅ TASDIQLANDI"));
+            await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
         } catch (e) { await ctx.answerCbQuery("Xatolik! Bot adminmi?"); }
     } else if (action === 'reject') {
         await ctx.telegram.sendMessage(uid, `❌ To'lov tasdiqlanmadi. Admin: ${config.adminUsername}`);
         await ctx.editMessageCaption(ctx.callbackQuery.message.caption.replace("🔔 YANGI TO'LOV", "❌ RAD ETILDI"));
+        await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
     }
     await ctx.answerCbQuery();
 });
