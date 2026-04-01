@@ -16,7 +16,7 @@ const config = {
     coreChannelId: process.env.CORE_CHANNEL_ID || '-1002340332822',
     salesGroupId: process.env.SALES_GROUP_ID,
     cardNumber: process.env.CARD_NUMBER || "4073 4200 8249 5759 (Avazxonov S)",
-    adminUsername: process.env.ADMIN_USERNAME || '@azaayd',
+    adminUsername: process.env.ADMIN_USERNAME || '@usmon_2xadmin',
     mongoUri: process.env.MONGODB_URI,
     redisUrl: process.env.REDIS_URL
 };
