@@ -255,5 +255,5 @@ if (WEBHOOK_URL) {
     bot.launch();
 }
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => { try { bot.stop('SIGINT'); } catch (e) {} });
+process.once('SIGTERM', () => { try { bot.stop('SIGTERM'); } catch (e) {} });
