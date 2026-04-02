@@ -26,37 +26,61 @@ const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 // --- CORE FUNCTIONS ---
 async function getDBUser(ctx) {
     const id = String(ctx.from.id);
+    console.log(`[getDBUser] Fetching user ${id}...`);
     try {
-        const { data: user } = await supabase
+        const { data: user, error } = await supabase
             .from('users')
             .select('*')
             .eq('id', id)
             .maybeSingle();
 
-        if (user) return user;
+        if (error) {
+            console.error(`[getDBUser] Supabase Select Error:`, error.message);
+            throw error;
+        }
 
+        if (user) {
+            console.log(`[getDBUser] Found user: ${user.full_name || user.name}`);
+            return user;
+        }
+
+        console.log(`[getDBUser] User not found. Creating new...`);
         const newUser = {
             id,
             name: ctx.from.first_name || "Do'st",
             username: ctx.from.username || '',
             step: 'START'
         };
-        const { data: created } = await supabase.from('users').insert([newUser]).select().single();
+        const { data: created, error: insError } = await supabase.from('users').insert([newUser]).select().single();
+        
+        if (insError) {
+            console.error(`[getDBUser] Supabase Insert Error:`, insError.message);
+            throw insError;
+        }
+
+        console.log(`[getDBUser] Created user ${id}`);
         return created || newUser;
     } catch (err) {
-        console.error("getDBUser Error:", err.message);
+        console.error("getDBUser Final Error:", err.message);
         return { id, name: ctx.from.first_name, step: 'START' };
     }
 }
 
 async function saveUser(user) {
+    console.log(`[saveUser] Updating user ${user.id} (Step: ${user.step})...`);
     try {
-        await supabase
+        const { error } = await supabase
             .from('users')
             .update(user)
             .eq('id', user.id);
+        
+        if (error) {
+            console.error(`[saveUser] Supabase Update Error:`, error.message);
+        } else {
+            console.log(`[saveUser] Successfully updated user ${user.id}`);
+        }
     } catch (err) {
-        console.error("saveUser Error:", err.message);
+        console.error("saveUser Final Error:", err.message);
     }
 }
 
