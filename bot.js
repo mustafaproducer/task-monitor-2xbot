@@ -7,6 +7,16 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Logging middleware to debug incoming webhook requests
+app.use(express.json());
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    if (req.body && req.body.update_id) {
+        console.log(`[Update ID] ${req.body.update_id}`);
+    }
+    next();
+});
+
 // Configuration
 const config = {
     token: process.env.BOT_TOKEN,
@@ -19,6 +29,10 @@ const config = {
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseKey: process.env.SUPABASE_KEY
 };
+
+if (!config.supabaseUrl || !config.supabaseKey) {
+    console.error("❌ ERROR: SUPABASE_URL or SUPABASE_KEY is missing from environment variables!");
+}
 
 // --- SUPABASE SETUP ---
 const supabase = createClient(config.supabaseUrl, config.supabaseKey);
