@@ -22,12 +22,14 @@ const config = {
 };
 
 // --- DATABASE SETUP ---
+console.log('⏳ Connecting to MongoDB...');
 mongoose.connect(config.mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     serverSelectionTimeoutMS: 5000
 }).then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
+  .catch(err => {
+      console.error('❌ MongoDB Connection Error:', err.message);
+      // Don't kill the process, maybe it recovers
+  });
 
 const User = mongoose.model('User', new mongoose.Schema({
     id: { type: String, unique: true, index: true },
@@ -49,7 +51,17 @@ redis.on('connect', () => console.log('🚀 Connected to Redis'));
 async function getDBUser(ctx) {
     const id = String(ctx.from.id);
     try {
-        const cachedUser = await redis.get(`user:${id}`);
+        // Redis check with timeout or graceful fallback
+        let cachedUser = null;
+        try {
+            cachedUser = await Promise.race([
+                redis.get(`user:${id}`),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+            ]);
+        } catch (re) {
+            console.error("Redis Get Error (falling back to DB):", re.message);
+        }
+
         if (cachedUser) return JSON.parse(cachedUser);
 
         let user = await User.findOne({ id });
@@ -62,7 +74,11 @@ async function getDBUser(ctx) {
             });
             await user.save();
         }
-        await redis.set(`user:${id}`, JSON.stringify(user), 'EX', 3600);
+        
+        try {
+            await redis.set(`user:${id}`, JSON.stringify(user), 'EX', 3600);
+        } catch (se) {}
+        
         return user.toObject ? user.toObject() : user;
     } catch (err) {
         console.error("getDBUser Error:", err.message);
@@ -73,7 +89,9 @@ async function getDBUser(ctx) {
 async function saveUser(user) {
     try {
         await User.findOneAndUpdate({ id: user.id }, user, { upsert: true });
-        await redis.set(`user:${user.id}`, JSON.stringify(user), 'EX', 3600);
+        try {
+            await redis.set(`user:${user.id}`, JSON.stringify(user), 'EX', 3600);
+        } catch (se) {}
     } catch (err) {
         console.error("saveUser Error:", err.message);
     }
