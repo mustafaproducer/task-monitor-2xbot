@@ -242,8 +242,18 @@ app.get('/dashboard', checkAuth, async (req, res) => {
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
-app.listen(PORT, () => console.log(`Server on port ${PORT}`));
-bot.launch();
+const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL;
+
+if (WEBHOOK_URL) {
+    bot.telegram.setWebhook(`${WEBHOOK_URL}/bot`).then(() => {
+        console.log(`✅ Webhook set: ${WEBHOOK_URL}/bot`);
+    });
+    app.use(bot.webhookCallback('/bot'));
+    app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+} else {
+    app.listen(PORT, () => console.log(`Server on port ${PORT}`));
+    bot.launch();
+}
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
