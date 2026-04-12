@@ -124,7 +124,30 @@ bot.command('admin', async (ctx) => {
     const { count: total } = await supabase.from('users').select('*', { count: 'exact', head: true });
     const { count: paid } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_paid', true);
     
-    ctx.reply(`📊 Statistika\n\n👥 Jami: ${total}\n✅ To'laganlar: ${paid}\n\n📥 /export\n📢 /broadcast [text]`);
+    ctx.reply(`📊 Statistika\n\n👥 Jami: ${total}\n✅ To'laganlar: ${paid}\n\n📥 /export\n📢 /broadcast [text]`, {
+        reply_markup: {
+            inline_keyboard: [[{ text: '🔗 YAKKA LINK YARATISH', callback_data: 'generate_admin_link' }]]
+        }
+    });
+});
+
+bot.action('generate_admin_link', async (ctx) => {
+    if (String(ctx.from.id) !== config.adminId) return ctx.answerCbQuery("Siz admin emassiz!");
+
+    try {
+        const link = await ctx.telegram.createChatInviteLink(config.channelId || config.coreChannelId, { 
+            member_limit: 1, 
+            expire_date: Math.floor(Date.now()/1000) + 86400 
+        });
+        
+        const msgText = `Tabriklaymiz siz birinchilardan bo'lib Premium Promptlarni sotib oldingiz!🎉 Ushbu havola 24 soatdan keyin ishlamaydi va bir marta kirish uchun ishlaydi, hozir qo'shilib olishni tavsiya qilamiz!\n\nHavola: ${link.invite_link}`;
+        
+        await ctx.reply(msgText);
+        await ctx.answerCbQuery("Yangi link yaratildi!");
+    } catch (e) {
+        console.error("Link xatosi:", e);
+        await ctx.answerCbQuery("Xatolik! Bot kanal/guruhga to'liq adminmi?");
+    }
 });
 
 bot.command('export', async (ctx) => {
@@ -219,6 +242,8 @@ bot.on('message', async (ctx) => {
 });
 
 bot.on('callback_query', async (ctx) => {
+    if (!ctx.callbackQuery.data.includes('_')) return; // Ignore if it's not approve_123 or reject_123
+    
     const [action, uid] = ctx.callbackQuery.data.split('_');
     const { data: targetUser } = await supabase.from('users').select('*').eq('id', uid).single();
 
