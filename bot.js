@@ -899,6 +899,131 @@ app.post('/login', (req, res) => {
     }
 });
 
+// Shared dashboard shell (sidebar + main area)
+function dashboardShell({ activePage, title, subtitle, content, extraHead = '', extraScripts = '' }) {
+    const nav = [
+        { id: 'dashboard', label: 'Overview', icon: '◆', href: '/dashboard' },
+        { id: 'users', label: 'Users', icon: '◉', href: '/users' },
+        { id: 'announcements', label: 'Announcements', icon: '◈', href: '/dashboard#announcements' },
+        { id: 'products', label: 'Products', icon: '◇', href: '/dashboard#products' }
+    ];
+    const navHtml = nav.map(n =>
+        `<a href="${n.href}" class="nav-item${n.id === activePage ? ' active' : ''}"><span class="nav-icon">${n.icon}</span>${n.label}</a>`
+    ).join('');
+
+    return `<!DOCTYPE html><html><head><title>${title} | 2xPREMIUM</title><meta name="viewport" content="width=device-width, initial-scale=1"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>${extraHead}<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#070707;color:#e7e7e7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;min-height:100vh;display:flex}
+a{color:inherit;text-decoration:none}
+
+/* Sidebar */
+.sidebar{width:240px;background:#0a0a0a;border-right:1px solid #161616;padding:24px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 12px;margin-bottom:32px}
+.brand-logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#D4AF37,#8B7500);display:flex;align-items:center;justify-content:center;color:#000;font-weight:800;font-size:14px}
+.brand-name{font-weight:700;font-size:15px;letter-spacing:-0.2px}
+.nav-section{color:#555;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;padding:0 12px;margin:12px 0 8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;color:#8a8a8a;font-size:13px;transition:all .15s;margin-bottom:2px}
+.nav-item:hover{background:#131313;color:#e7e7e7}
+.nav-item.active{background:#151515;color:#fff;box-shadow:inset 2px 0 0 #D4AF37}
+.nav-icon{width:16px;text-align:center;color:#D4AF37;font-size:11px}
+.sidebar-footer{margin-top:auto;padding:8px 12px;border-top:1px solid #161616;padding-top:16px}
+.sidebar-footer a{display:block;padding:8px 12px;color:#666;font-size:12px;border-radius:7px}
+.sidebar-footer a:hover{background:#131313;color:#e7e7e7}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{padding:20px 32px;border-bottom:1px solid #161616;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.topbar-title h1{font-size:20px;font-weight:700;letter-spacing:-0.3px}
+.topbar-title .sub{color:#666;font-size:12px;margin-top:4px}
+.topbar-actions{display:flex;gap:10px}
+.btn{padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #222;background:#111;color:#e7e7e7;transition:all .15s}
+.btn:hover{background:#171717;border-color:#2a2a2a}
+.btn.primary{background:#D4AF37;color:#000;border-color:#D4AF37}
+.btn.primary:hover{background:#c29d2a}
+.content{padding:28px 32px;max-width:1400px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:28px}
+.kpi{background:#0c0c0c;border:1px solid #161616;padding:20px;border-radius:12px;transition:border-color .2s}
+.kpi:hover{border-color:#222}
+.kpi .label{color:#666;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;font-weight:600}
+.kpi .value{font-size:28px;font-weight:800;margin-top:10px;letter-spacing:-0.5px}
+.kpi .value.gold{color:#D4AF37}
+.kpi .delta{color:#4ade80;font-size:11px;margin-top:6px}
+
+/* Charts */
+.section-title{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin:32px 0 14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:3px;height:12px;background:#D4AF37;border-radius:2px}
+.charts{display:grid;grid-template-columns:1.7fr 1fr;gap:14px}
+.chart-card{background:#0c0c0c;border:1px solid #161616;padding:20px;border-radius:12px}
+.chart-card h3{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px;font-weight:600}
+.chart-card.full{grid-column:1 / -1}
+canvas{max-height:260px}
+
+/* Table */
+.table-wrap{background:#0c0c0c;border:1px solid #161616;border-radius:12px;overflow:hidden;margin-top:14px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:14px 20px;text-align:left;font-size:13px;border-bottom:1px solid #141414}
+th{background:#0a0a0a;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#0e0e0e}
+td.muted{color:#666}
+.status{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px}
+.status.sent{color:#4ade80}
+.status.cancelled{color:#f87171}
+.status.draft{color:#fbbf24}
+.status.paid{color:#4ade80}
+.status.unpaid{color:#666}
+
+/* Products grid */
+.products-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.product-card{background:#0c0c0c;border:1px solid #161616;padding:18px;border-radius:12px}
+.product-card h4{font-size:15px;margin-bottom:4px}
+.product-card .price{color:#D4AF37;font-weight:700;font-size:18px;margin:8px 0}
+.product-card .sales{color:#666;font-size:12px}
+
+/* Responsive */
+@media (max-width:900px){
+  body{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;overflow-x:auto;padding:12px;border-right:none;border-bottom:1px solid #161616}
+  .sidebar .brand{margin-bottom:0;margin-right:20px}
+  .nav-section,.sidebar-footer{display:none}
+  .nav-item{flex-shrink:0}
+  .topbar{padding:16px 20px}
+  .content{padding:20px}
+  .charts{grid-template-columns:1fr}
+}
+</style></head><body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-logo">2x</div>
+    <div class="brand-name">2xPREMIUM</div>
+  </div>
+  <div class="nav-section">Overview</div>
+  ${navHtml}
+  <div class="sidebar-footer">
+    <a href="/login" onclick="document.cookie='auth=;max-age=0'">↗ Chiqish</a>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title">
+      <h1>${title}</h1>
+      <div class="sub">${subtitle}</div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn" onclick="location.reload()">↻ Yangilash</button>
+    </div>
+  </div>
+  <div class="content">${content}</div>
+</main>
+
+${extraScripts}
+</body></html>`;
+}
+
 app.get('/dashboard', checkAuth, async (req, res) => {
     try {
         const [usersRes, annRes] = await Promise.all([
@@ -958,97 +1083,77 @@ app.get('/dashboard', checkAuth, async (req, res) => {
 
         // Announcement history rows
         const annRows = announcements.map(a => {
-            const caption = (a.caption || '').replace(/[<>]/g, '').slice(0, 60);
-            const target = `${a.target}${a.target_product_id ? ' (' + a.target_product_id + ')' : ''}`;
-            const badge = a.status === 'sent' ? '#2ecc71' : (a.status === 'cancelled' ? '#e74c3c' : '#888');
-            return `<tr><td>${a.id}</td><td><span style="background:${badge};padding:3px 8px;border-radius:4px;font-size:11px;color:#000;">${a.status}</span></td><td>${target}</td><td>${caption}</td><td>${a.sent_count || 0} / ${a.failed_count || 0}</td><td>${a.created_at ? new Date(a.created_at).toLocaleString() : '-'}</td></tr>`;
-        }).join('') || `<tr><td colspan="6" style="text-align:center;color:#666;padding:30px;">Hali e'lonlar yo'q</td></tr>`;
+            const caption = (a.caption || '—').replace(/[<>]/g, '').slice(0, 70);
+            const target = `${a.target || '—'}${a.target_product_id ? ' · ' + a.target_product_id : ''}`;
+            const status = a.status || 'draft';
+            const when = a.created_at ? new Date(a.created_at).toLocaleString() : '—';
+            return `<tr><td class="muted">#${a.id}</td><td><span class="status ${status}">${status}</span></td><td>${target}</td><td>${caption}</td><td class="muted">${a.sent_count || 0} / ${a.failed_count || 0}</td><td class="muted">${when}</td></tr>`;
+        }).join('') || `<tr><td colspan="6" style="text-align:center;color:#555;padding:40px;">Hali e'lonlar yo'q</td></tr>`;
 
-        res.send(`<!DOCTYPE html><html><head><title>2xPREMIUM Analytics</title><meta name="viewport" content="width=device-width, initial-scale=1"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
-*{box-sizing:border-box}
-body{background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:30px;margin:0}
-h1{color:#D4AF37;margin:0 0 8px 0;font-size:28px}
-.subtitle{color:#666;font-size:13px;margin-bottom:30px}
-h2{color:#D4AF37;font-size:15px;margin:0 0 18px 0;text-transform:uppercase;letter-spacing:1px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:30px}
-.kpi{background:linear-gradient(135deg,#111 0%,#0a0a0a 100%);padding:22px;border-radius:14px;border:1px solid rgba(212,175,55,0.2)}
-.kpi .label{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1.5px}
-.kpi .value{font-size:30px;font-weight:800;margin-top:10px;color:#fff}
-.kpi .value.gold{color:#D4AF37}
-.charts{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:30px}
-.chart-card{background:#0c0c0c;padding:22px;border-radius:14px;border:1px solid #1a1a1a}
-.chart-card.full{grid-column:1 / -1}
-table{width:100%;border-collapse:collapse;background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #1a1a1a}
-th,td{padding:14px 16px;border-bottom:1px solid #1a1a1a;text-align:left;font-size:13px}
-th{background:#111;color:#D4AF37;font-size:10px;text-transform:uppercase;letter-spacing:1.5px}
-tr:last-child td{border-bottom:none}
-.links{margin-top:24px;display:flex;gap:14px;flex-wrap:wrap}
-.links a{color:#D4AF37;text-decoration:none;padding:10px 18px;background:#111;border-radius:8px;border:1px solid #222;font-size:13px}
-.links a:hover{background:#1a1a1a}
-canvas{max-height:260px}
-@media (max-width:768px){.charts{grid-template-columns:1fr}body{padding:16px}}
-</style></head><body>
+        // Product cards
+        const productCards = getActiveProducts().map(p => {
+            const sold = salesByProduct[p.id] || 0;
+            return `<div class="product-card"><h4>${p.emoji} ${p.title}</h4><div class="price">${p.priceText}</div><div class="sales">🛒 ${sold} ta sotilgan · kanal: ${p.channelId}</div></div>`;
+        }).join('');
 
-<h1>📊 2xPREMIUM Analytics</h1>
-<div class="subtitle">Yangilangan: ${new Date().toLocaleString()}</div>
-
+        const content = `
 <div class="kpis">
-  <div class="kpi"><div class="label">👥 Jami foydalanuvchilar</div><div class="value">${total}</div></div>
-  <div class="kpi"><div class="label">✅ To'laganlar</div><div class="value gold">${paid}</div></div>
-  <div class="kpi"><div class="label">📈 Konversiya</div><div class="value">${conversion}%</div></div>
-  <div class="kpi"><div class="label">💰 Umumiy daromad</div><div class="value gold">${revenue.toLocaleString()} so'm</div></div>
+  <div class="kpi"><div class="label">Jami foydalanuvchilar</div><div class="value">${total}</div></div>
+  <div class="kpi"><div class="label">To'laganlar</div><div class="value gold">${paid}</div></div>
+  <div class="kpi"><div class="label">Konversiya</div><div class="value">${conversion}%</div></div>
+  <div class="kpi"><div class="label">Umumiy daromad</div><div class="value gold">${revenue.toLocaleString()} so'm</div></div>
 </div>
 
 <div class="charts">
-  <div class="chart-card"><h2>📈 Kunlik ro'yxatdan o'tish (30 kun)</h2><canvas id="signupsChart"></canvas></div>
-  <div class="chart-card"><h2>🎯 Konversiya voronkasi</h2><canvas id="funnelChart"></canvas></div>
+  <div class="chart-card"><h3>Kunlik ro'yxatdan o'tish · 30 kun</h3><canvas id="signupsChart"></canvas></div>
+  <div class="chart-card"><h3>Konversiya voronkasi</h3><canvas id="funnelChart"></canvas></div>
 </div>
 
-<div class="chart-card full" style="margin-bottom:30px"><h2>🛍 Mahsulotlar bo'yicha sotuvlar</h2><canvas id="salesChart" style="max-height:240px"></canvas></div>
+<div class="chart-card full" style="margin-top:14px"><h3>Mahsulotlar bo'yicha sotuvlar</h3><canvas id="salesChart" style="max-height:240px"></canvas></div>
 
-<h2 style="margin-top:0">📢 So'nggi e'lonlar</h2>
-<table>
-  <thead><tr><th>ID</th><th>Status</th><th>Maqsad</th><th>Matn</th><th>Yub./Xato</th><th>Sana</th></tr></thead>
-  <tbody>${annRows}</tbody>
-</table>
+<div id="products" class="section-title">Products</div>
+<div class="products-grid">${productCards}</div>
 
-<div class="links">
-  <a href="/users">👥 Foydalanuvchilar ro'yxati</a>
-  <a href="/login" onclick="document.cookie='auth=;max-age=0';return true">🚪 Chiqish</a>
+<div id="announcements" class="section-title">Recent Announcements</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Status</th><th>Target</th><th>Caption</th><th>Sent / Failed</th><th>Created</th></tr></thead>
+    <tbody>${annRows}</tbody>
+  </table>
 </div>
+`;
 
-<script>
-Chart.defaults.color='#888';
-Chart.defaults.borderColor='#1a1a1a';
+        const scripts = `<script>
+Chart.defaults.color='#666';
+Chart.defaults.borderColor='#141414';
+Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,sans-serif';
 
 new Chart(document.getElementById('signupsChart'),{
   type:'line',
-  data:{
-    labels:${JSON.stringify(days)},
-    datasets:[{label:'Yangi',data:${JSON.stringify(counts)},borderColor:'#D4AF37',backgroundColor:'rgba(212,175,55,0.12)',fill:true,tension:0.35,pointRadius:2,borderWidth:2}]
-  },
-  options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}
+  data:{labels:${JSON.stringify(days)},datasets:[{label:'Yangi',data:${JSON.stringify(counts)},borderColor:'#D4AF37',backgroundColor:'rgba(212,175,55,0.08)',fill:true,tension:0.35,pointRadius:0,borderWidth:2}]},
+  options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0,color:'#555'},grid:{color:'#141414'}},x:{ticks:{color:'#555'},grid:{display:false}}}}
 });
 
 new Chart(document.getElementById('funnelChart'),{
   type:'bar',
-  data:{
-    labels:['Boshlandi','Ism','Telefon','Urindi','To\\'ladi'],
-    datasets:[{data:[${funnel.started},${funnel.named},${funnel.phoned},${funnel.attempted},${funnel.paid}],backgroundColor:['#333','#555','#777','#B8941F','#D4AF37'],borderRadius:6}]
-  },
-  options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}
+  data:{labels:['Started','Name','Phone','Tried','Paid'],datasets:[{data:[${funnel.started},${funnel.named},${funnel.phoned},${funnel.attempted},${funnel.paid}],backgroundColor:['#222','#333','#4a4a4a','#8B7500','#D4AF37'],borderRadius:4,borderSkipped:false}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0,color:'#555'},grid:{color:'#141414'}},y:{ticks:{color:'#888'},grid:{display:false}}}}
 });
 
 new Chart(document.getElementById('salesChart'),{
   type:'doughnut',
-  data:{
-    labels:${JSON.stringify(productSales.map(s => s.name))},
-    datasets:[{data:${JSON.stringify(productSales.map(s => s.count))},backgroundColor:['#D4AF37','#8B7500','#666','#444'],borderWidth:0}]
-  },
-  options:{plugins:{legend:{position:'right',labels:{color:'#888'}}}}
+  data:{labels:${JSON.stringify(productSales.map(s => s.name))},datasets:[{data:${JSON.stringify(productSales.map(s => s.count))},backgroundColor:['#D4AF37','#8B7500','#4a4a4a','#2a2a2a'],borderWidth:0}]},
+  options:{cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#888',font:{size:12}}}}}
 });
-</script>
-</body></html>`);
+</script>`;
+
+        res.send(dashboardShell({
+            activePage: 'dashboard',
+            title: 'Overview',
+            subtitle: `Yangilangan: ${new Date().toLocaleString()}`,
+            content,
+            extraScripts: scripts
+        }));
     } catch (e) {
         console.error('Dashboard error:', e);
         res.status(500).send(`<pre style="color:#fff;background:#000;padding:20px;">Dashboard xatosi: ${e.message}</pre>`);
@@ -1062,12 +1167,29 @@ app.get('/users', checkAuth, async (req, res) => {
         .order('joined_at', { ascending: false })
         .limit(300);
     const rows = (users || []).map(u => {
-        const prods = Array.isArray(u.paid_products) && u.paid_products.length > 0 ? u.paid_products.join(', ') : '-';
-        const name = (u.full_name || u.name || '-').replace(/[<>]/g, '');
-        const username = u.username ? '@' + u.username.replace(/[<>]/g, '') : '-';
-        return `<tr><td>${u.id}</td><td>${name}</td><td>${username}</td><td>${u.phone || '-'}</td><td>${u.is_paid ? '✅' : '⏳'}</td><td>${prods}</td><td>${u.joined_at ? new Date(u.joined_at).toLocaleString() : '-'}</td></tr>`;
+        const prods = Array.isArray(u.paid_products) && u.paid_products.length > 0 ? u.paid_products.join(', ') : '—';
+        const name = (u.full_name || u.name || '—').replace(/[<>]/g, '');
+        const username = u.username ? '@' + u.username.replace(/[<>]/g, '') : '—';
+        const statusClass = u.is_paid ? 'paid' : 'unpaid';
+        const statusText = u.is_paid ? 'paid' : 'unpaid';
+        const when = u.joined_at ? new Date(u.joined_at).toLocaleString() : '—';
+        return `<tr><td class="muted">${u.id}</td><td>${name}</td><td class="muted">${username}</td><td>${u.phone || '—'}</td><td><span class="status ${statusClass}">${statusText}</span></td><td class="muted">${prods}</td><td class="muted">${when}</td></tr>`;
     }).join('');
-    res.send(`<!DOCTYPE html><html><head><title>Users | 2xPREMIUM</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#050505;color:#fff;font-family:-apple-system,sans-serif;padding:30px;margin:0}h1{color:#D4AF37}table{width:100%;border-collapse:collapse;background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #1a1a1a}th,td{padding:12px 16px;border-bottom:1px solid #1a1a1a;text-align:left;font-size:13px}th{background:#111;color:#D4AF37;font-size:10px;text-transform:uppercase;letter-spacing:1.5px}a{color:#D4AF37;text-decoration:none}</style></head><body><h1>👥 Foydalanuvchilar</h1><p><a href="/dashboard">← Dashboard'ga qaytish</a></p><table><thead><tr><th>ID</th><th>Ism</th><th>User</th><th>Raqam</th><th>To'lov</th><th>Mahsulotlar</th><th>Sana</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+
+    const content = `
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Username</th><th>Phone</th><th>Status</th><th>Products</th><th>Joined</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#555;padding:40px;">Hali foydalanuvchilar yo\'q</td></tr>'}</tbody>
+  </table>
+</div>`;
+
+    res.send(dashboardShell({
+        activePage: 'users',
+        title: 'Users',
+        subtitle: `${(users || []).length} ta foydalanuvchi ko'rsatilmoqda`,
+        content
+    }));
 });
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
