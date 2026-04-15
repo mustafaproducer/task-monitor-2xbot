@@ -83,6 +83,182 @@ function hasPurchased(user, productId) {
     return Array.isArray(user.paid_products) && user.paid_products.includes(productId);
 }
 
+// --- Announcement Helpers ---
+async function createDraft(adminId) {
+    const { data, error } = await supabase
+        .from('announcements')
+        .insert([{ admin_id: adminId }])
+        .select()
+        .single();
+    if (error) { console.error('createDraft:', error.message); throw error; }
+    return data;
+}
+
+async function updateDraft(id, fields) {
+    const { data, error } = await supabase
+        .from('announcements')
+        .update(fields)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) { console.error('updateDraft:', error.message); throw error; }
+    return data;
+}
+
+async function getDraft(id) {
+    const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+    if (error) { console.error('getDraft:', error.message); return null; }
+    return data;
+}
+
+function buildAnnouncementKeyboard(draft) {
+    if (!draft.button_text) return undefined;
+    if (draft.button_url) {
+        return { inline_keyboard: [[{ text: draft.button_text, url: draft.button_url }]] };
+    }
+    if (draft.button_product_id) {
+        return { inline_keyboard: [[{ text: draft.button_text, callback_data: `view_product_${draft.button_product_id}` }]] };
+    }
+    return undefined;
+}
+
+async function fetchTargetUsers(target, productId) {
+    let q = supabase.from('users').select('id, paid_products');
+    if (target === 'paid') q = q.eq('is_paid', true);
+    else if (target === 'unpaid') q = q.eq('is_paid', false);
+    const { data } = await q;
+    const users = data || [];
+    if (target === 'product' && productId) {
+        return users.filter(u => Array.isArray(u.paid_products) && u.paid_products.includes(productId));
+    }
+    return users;
+}
+
+async function deliverAnnouncement(userId, draft) {
+    const reply_markup = buildAnnouncementKeyboard(draft);
+    const opts = {};
+    if (reply_markup) opts.reply_markup = reply_markup;
+    if (draft.photo_file_id) {
+        await bot.telegram.sendPhoto(userId, draft.photo_file_id, { caption: draft.caption || '', ...opts });
+    } else {
+        await bot.telegram.sendMessage(userId, draft.caption || '', opts);
+    }
+}
+
+async function sendPreview(ctx, draft) {
+    await ctx.reply("👀 *Preview* — quyidagicha yuboriladi:", { parse_mode: 'Markdown' });
+    const reply_markup = buildAnnouncementKeyboard(draft);
+    const opts = {};
+    if (reply_markup) opts.reply_markup = reply_markup;
+    if (draft.photo_file_id) {
+        await ctx.replyWithPhoto(draft.photo_file_id, { caption: draft.caption || '', ...opts });
+    } else {
+        await ctx.reply(draft.caption || '', opts);
+    }
+    const targetLabels = { all: "👥 Hammaga", paid: "✅ To'laganlarga", unpaid: "⏳ To'lamaganlarga", product: "🎯 Mahsulot sotib olganlarga" };
+    await ctx.reply(
+        `🎯 Maqsadli auditoriya: *${targetLabels[draft.target] || draft.target}*\n\nYuborishni tasdiqlaysizmi?`,
+        {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: '✅ Yuborish', callback_data: `ann_send_${draft.id}` },
+                    { text: '❌ Bekor qilish', callback_data: `ann_cancel_${draft.id}` }
+                ]]
+            }
+        }
+    );
+}
+
+function showTargetMenu(ctx) {
+    return ctx.reply("4/5 — 🎯 Kimga yuborilsin?", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '👥 Hammaga', callback_data: 'ann_target_all' }],
+                [{ text: "✅ To'laganlarga", callback_data: 'ann_target_paid' }],
+                [{ text: "⏳ To'lamaganlarga", callback_data: 'ann_target_unpaid' }],
+                [{ text: '🎯 Mahsulot sotib olganlarga', callback_data: 'ann_target_product' }]
+            ]
+        }
+    });
+}
+
+async function handleAnnouncementStep(ctx, user) {
+    const draftId = user.draft_announcement_id;
+    if (!draftId) {
+        user.step = 'MAIN_MENU';
+        await saveUser(user);
+        return ctx.reply("Draft topilmadi. /announce bilan qaytadan boshlang.");
+    }
+
+    const step = user.step;
+
+    if (step === 'ANN_PHOTO') {
+        if (ctx.message.photo) {
+            const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+            await updateDraft(draftId, { photo_file_id: photoId });
+            user.step = 'ANN_CAPTION';
+            await saveUser(user);
+            return ctx.reply("✅ Rasm qabul qilindi.\n\n2/5 — ✍️ Matn (caption) yuboring:");
+        }
+        return ctx.reply("📸 Iltimos, rasm yuboring yoki /skip (matnli e'lon uchun). Bekor qilish: /cancel");
+    }
+
+    if (step === 'ANN_CAPTION') {
+        if (ctx.message.text) {
+            await updateDraft(draftId, { caption: ctx.message.text });
+            user.step = 'ANN_BUTTON_ASK';
+            await saveUser(user);
+            return ctx.reply("3/5 — 🔘 Tugma qo'shasizmi?", {
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: '✅ Ha', callback_data: 'ann_btn_yes' },
+                        { text: "❌ Yo'q", callback_data: 'ann_btn_no' }
+                    ]]
+                }
+            });
+        }
+        return ctx.reply("✍️ Iltimos, matn (caption) yuboring. Bekor qilish: /cancel");
+    }
+
+    if (step === 'ANN_BUTTON_TEXT') {
+        if (ctx.message.text) {
+            await updateDraft(draftId, { button_text: ctx.message.text });
+            user.step = 'ANN_BUTTON_TYPE';
+            await saveUser(user);
+            return ctx.reply("Tugma turini tanlang:", {
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: '🔗 URL', callback_data: 'ann_btntype_url' },
+                        { text: '🛍 Mahsulot', callback_data: 'ann_btntype_product' }
+                    ]]
+                }
+            });
+        }
+        return ctx.reply("Tugma matnini yuboring (masalan: 🛍 Sotib olish)");
+    }
+
+    if (step === 'ANN_BUTTON_URL') {
+        if (ctx.message.text) {
+            const url = ctx.message.text.trim();
+            if (!/^https?:\/\//i.test(url) && !/^tg:\/\//i.test(url)) {
+                return ctx.reply("❌ Noto'g'ri URL. https:// bilan boshlanishi kerak. Qaytadan yuboring:");
+            }
+            await updateDraft(draftId, { button_url: url });
+            user.step = 'ANN_TARGET';
+            await saveUser(user);
+            return showTargetMenu(ctx);
+        }
+        return ctx.reply("URL manzilini yuboring (https://...)");
+    }
+
+    return ctx.reply("Kutilmagan javob. /cancel bilan bekor qilib qayta boshlang.");
+}
+
 // --- Bot Setup ---
 const bot = new Telegraf(config.token);
 
@@ -192,6 +368,66 @@ bot.command('resetpending', async (ctx) => {
         } catch (e) {}
     }
     ctx.reply(`✅ ${stuck.length} ta foydalanuvchi reset qilindi.`);
+});
+
+// ========== /announce — Rich Broadcast ==========
+bot.command('announce', async (ctx) => {
+    if (String(ctx.from.id) !== config.adminId) return;
+    const user = await getDBUser(ctx);
+    try {
+        const draft = await createDraft(config.adminId);
+        user.step = 'ANN_PHOTO';
+        user.draft_announcement_id = draft.id;
+        await saveUser(user);
+        await ctx.reply(
+            "📢 *Yangi e'lon yaratish*\n\n" +
+            "1/5 — 📸 Rasm yuboring\n" +
+            "(yoki /skip — matnli e'lon uchun)\n\n" +
+            "Bekor qilish: /cancel",
+            { parse_mode: 'Markdown' }
+        );
+    } catch (e) {
+        ctx.reply("❌ Xatolik: " + e.message);
+    }
+});
+
+bot.command('cancel', async (ctx) => {
+    if (String(ctx.from.id) !== config.adminId) return;
+    const user = await getDBUser(ctx);
+    if (!user.step || !user.step.startsWith('ANN_')) {
+        return ctx.reply("Bekor qiladigan narsa yo'q.");
+    }
+    if (user.draft_announcement_id) {
+        await updateDraft(user.draft_announcement_id, { status: 'cancelled' }).catch(() => {});
+    }
+    user.step = 'MAIN_MENU';
+    user.draft_announcement_id = null;
+    await saveUser(user);
+    await ctx.reply("❌ E'lon yaratish bekor qilindi.", mainMenu);
+});
+
+bot.command('skip', async (ctx) => {
+    if (String(ctx.from.id) !== config.adminId) return;
+    const user = await getDBUser(ctx);
+    if (user.step === 'ANN_PHOTO') {
+        user.step = 'ANN_CAPTION';
+        await saveUser(user);
+        return ctx.reply("2/5 — ✍️ Matn (caption) yuboring:");
+    }
+});
+
+// Admin announcement middleware — intercepts admin messages in ANN_* state
+// so they don't get hijacked by menu button handlers.
+bot.use(async (ctx, next) => {
+    if (ctx.callbackQuery) return next();
+    if (!ctx.message) return next();
+    if (!ctx.from || String(ctx.from.id) !== config.adminId) return next();
+    if (ctx.message.text && ctx.message.text.startsWith('/')) return next();
+
+    const user = await getDBUser(ctx);
+    if (!user.step || !user.step.startsWith('ANN_')) return next();
+
+    return handleAnnouncementStep(ctx, user);
 });
 
 // ========== Menu Button Handlers ==========
@@ -327,6 +563,145 @@ bot.action(/buy_(.+)/, async (ctx) => {
 });
 
 bot.action('noop', (ctx) => ctx.answerCbQuery());
+
+// ========== Announcement Callbacks ==========
+const isAdmin = (ctx) => String(ctx.from.id) === config.adminId;
+
+bot.action('ann_btn_yes', async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const user = await getDBUser(ctx);
+    user.step = 'ANN_BUTTON_TEXT';
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    await ctx.reply("Tugma matnini yuboring (masalan: 🛍 Sotib olish):");
+    await ctx.answerCbQuery();
+});
+
+bot.action('ann_btn_no', async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const user = await getDBUser(ctx);
+    user.step = 'ANN_TARGET';
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    await showTargetMenu(ctx);
+    await ctx.answerCbQuery();
+});
+
+bot.action('ann_btntype_url', async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const user = await getDBUser(ctx);
+    user.step = 'ANN_BUTTON_URL';
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    await ctx.reply("🔗 URL manzilini yuboring (https:// bilan boshlanishi kerak):");
+    await ctx.answerCbQuery();
+});
+
+bot.action('ann_btntype_product', async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const activeProducts = getActiveProducts();
+    if (activeProducts.length === 0) return ctx.answerCbQuery("Mahsulot yo'q");
+    const buttons = activeProducts.map(p => [{ text: `${p.emoji} ${p.title}`, callback_data: `ann_prod_${p.id}` }]);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: buttons }).catch(() => {});
+    await ctx.answerCbQuery();
+});
+
+bot.action(/ann_prod_(.+)/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const productId = ctx.match[1];
+    const user = await getDBUser(ctx);
+    await updateDraft(user.draft_announcement_id, { button_product_id: productId });
+    user.step = 'ANN_TARGET';
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    await showTargetMenu(ctx);
+    await ctx.answerCbQuery();
+});
+
+bot.action(/ann_target_(all|paid|unpaid|product)/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const target = ctx.match[1];
+    const user = await getDBUser(ctx);
+
+    if (target === 'product') {
+        const activeProducts = getActiveProducts();
+        const buttons = activeProducts.map(p => [{ text: `${p.emoji} ${p.title}`, callback_data: `ann_tprod_${p.id}` }]);
+        await ctx.editMessageReplyMarkup({ inline_keyboard: buttons }).catch(() => {});
+        return ctx.answerCbQuery();
+    }
+
+    await updateDraft(user.draft_announcement_id, { target });
+    user.step = 'ANN_CONFIRM';
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    const draft = await getDraft(user.draft_announcement_id);
+    await sendPreview(ctx, draft);
+    await ctx.answerCbQuery();
+});
+
+bot.action(/ann_tprod_(.+)/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const productId = ctx.match[1];
+    const user = await getDBUser(ctx);
+    await updateDraft(user.draft_announcement_id, { target: 'product', target_product_id: productId });
+    user.step = 'ANN_CONFIRM';
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    const draft = await getDraft(user.draft_announcement_id);
+    await sendPreview(ctx, draft);
+    await ctx.answerCbQuery();
+});
+
+bot.action(/ann_send_(\d+)/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const draftId = parseInt(ctx.match[1], 10);
+    const draft = await getDraft(draftId);
+    if (!draft) return ctx.answerCbQuery("Draft topilmadi");
+
+    const targets = await fetchTargetUsers(draft.target, draft.target_product_id);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    await ctx.reply(`⏳ ${targets.length} ta foydalanuvchiga yuborilmoqda...`);
+
+    let sent = 0, failed = 0;
+    for (const u of targets) {
+        try {
+            await deliverAnnouncement(u.id, draft);
+            sent++;
+        } catch (e) {
+            failed++;
+        }
+        // Throttle to stay under Telegram's ~30 msg/sec limit
+        if ((sent + failed) % 25 === 0) await new Promise(r => setTimeout(r, 1100));
+    }
+
+    await updateDraft(draftId, {
+        status: 'sent',
+        sent_count: sent,
+        failed_count: failed,
+        sent_at: new Date().toISOString()
+    });
+
+    const user = await getDBUser(ctx);
+    user.step = 'MAIN_MENU';
+    user.draft_announcement_id = null;
+    await saveUser(user);
+
+    await ctx.reply(`✅ Tayyor!\n\n📤 Yuborildi: ${sent}\n❌ Xatolik: ${failed}`, mainMenu);
+    await ctx.answerCbQuery();
+});
+
+bot.action(/ann_cancel_(\d+)/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCbQuery();
+    const draftId = parseInt(ctx.match[1], 10);
+    await updateDraft(draftId, { status: 'cancelled' }).catch(() => {});
+    const user = await getDBUser(ctx);
+    user.step = 'MAIN_MENU';
+    user.draft_announcement_id = null;
+    await saveUser(user);
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
+    await ctx.reply("❌ E'lon bekor qilindi.", mainMenu);
+    await ctx.answerCbQuery();
+});
 
 // ========== Onboarding + Payment Messages ==========
 bot.on('message', async (ctx) => {
