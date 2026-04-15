@@ -75,21 +75,24 @@ const USER_COLUMNS = [
     'pending_product_id', 'paid_products', 'draft_announcement_id'
 ];
 
+async function updateUserFields(id, patch) {
+    const { error } = await supabase.from('users').update(patch).eq('id', id);
+    if (error) {
+        console.error(`[updateUserFields] ${id} fields=${Object.keys(patch).join(',')} err=${error.message}`);
+        // Retry once with each field individually so one bad column doesn't drop the rest.
+        for (const [k, v] of Object.entries(patch)) {
+            const { error: e2 } = await supabase.from('users').update({ [k]: v }).eq('id', id);
+            if (e2) console.error(`[updateUserFields] skip ${k}: ${e2.message}`);
+        }
+    }
+}
+
 async function saveUser(user) {
     const fields = {};
     for (const k of USER_COLUMNS) {
         if (user[k] !== undefined) fields[k] = user[k];
     }
-    try {
-        const { error } = await supabase.from('users').update(fields).eq('id', user.id);
-        if (error) {
-            console.error(`[saveUser] Error for ${user.id}:`, error.message, '| fields:', Object.keys(fields).join(','));
-            throw error;
-        }
-    } catch (err) {
-        console.error("saveUser Error:", err.message);
-        throw err;
-    }
+    await updateUserFields(user.id, fields);
 }
 
 function hasPurchased(user, productId) {
