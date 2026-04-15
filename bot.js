@@ -142,11 +142,16 @@ async function deliverAnnouncement(userId, draft) {
     const reply_markup = buildAnnouncementKeyboard(draft);
     const opts = {};
     if (reply_markup) opts.reply_markup = reply_markup;
-    if (draft.photo_file_id) {
-        await bot.telegram.sendPhoto(userId, draft.photo_file_id, { caption: draft.caption || '', ...opts });
-    } else {
-        await bot.telegram.sendMessage(userId, draft.caption || '', opts);
+    const caption = draft.caption || '';
+    const fid = draft.photo_file_id;
+    const mtype = draft.media_type || 'photo';
+    if (!fid) {
+        return bot.telegram.sendMessage(userId, caption, opts);
     }
+    if (mtype === 'video') return bot.telegram.sendVideo(userId, fid, { caption, ...opts });
+    if (mtype === 'document') return bot.telegram.sendDocument(userId, fid, { caption, ...opts });
+    if (mtype === 'animation') return bot.telegram.sendAnimation(userId, fid, { caption, ...opts });
+    return bot.telegram.sendPhoto(userId, fid, { caption, ...opts });
 }
 
 async function sendPreview(ctx, draft) {
@@ -154,10 +159,19 @@ async function sendPreview(ctx, draft) {
     const reply_markup = buildAnnouncementKeyboard(draft);
     const opts = {};
     if (reply_markup) opts.reply_markup = reply_markup;
-    if (draft.photo_file_id) {
-        await ctx.replyWithPhoto(draft.photo_file_id, { caption: draft.caption || '', ...opts });
+    const caption = draft.caption || '';
+    const fid = draft.photo_file_id;
+    const mtype = draft.media_type || 'photo';
+    if (!fid) {
+        await ctx.reply(caption, opts);
+    } else if (mtype === 'video') {
+        await ctx.replyWithVideo(fid, { caption, ...opts });
+    } else if (mtype === 'document') {
+        await ctx.replyWithDocument(fid, { caption, ...opts });
+    } else if (mtype === 'animation') {
+        await ctx.replyWithAnimation(fid, { caption, ...opts });
     } else {
-        await ctx.reply(draft.caption || '', opts);
+        await ctx.replyWithPhoto(fid, { caption, ...opts });
     }
     const targetLabels = { all: "👥 Hammaga", paid: "✅ To'laganlarga", unpaid: "⏳ To'lamaganlarga", product: "🎯 Mahsulot sotib olganlarga" };
     await ctx.reply(
@@ -198,14 +212,32 @@ async function handleAnnouncementStep(ctx, user) {
     const step = user.step;
 
     if (step === 'ANN_PHOTO') {
+        let fileId = null, mediaType = null, label = null;
         if (ctx.message.photo) {
-            const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-            await updateDraft(draftId, { photo_file_id: photoId });
+            fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+            mediaType = 'photo';
+            label = 'Rasm';
+        } else if (ctx.message.video) {
+            fileId = ctx.message.video.file_id;
+            mediaType = 'video';
+            label = 'Video';
+        } else if (ctx.message.animation) {
+            fileId = ctx.message.animation.file_id;
+            mediaType = 'animation';
+            label = 'GIF';
+        } else if (ctx.message.document) {
+            fileId = ctx.message.document.file_id;
+            mediaType = 'document';
+            label = 'Hujjat';
+        }
+
+        if (fileId) {
+            await updateDraft(draftId, { photo_file_id: fileId, media_type: mediaType });
             user.step = 'ANN_CAPTION';
             await saveUser(user);
-            return ctx.reply("✅ Rasm qabul qilindi.\n\n2/5 — ✍️ Matn (caption) yuboring:");
+            return ctx.reply(`✅ ${label} qabul qilindi.\n\n2/5 — ✍️ Matn (caption) yuboring:`);
         }
-        return ctx.reply("📸 Iltimos, rasm yuboring yoki /skip (matnli e'lon uchun). Bekor qilish: /cancel");
+        return ctx.reply("📸 Iltimos, rasm / video / GIF / hujjat yuboring yoki /skip (matnli e'lon uchun). Bekor qilish: /cancel");
     }
 
     if (step === 'ANN_CAPTION') {
@@ -381,8 +413,8 @@ bot.command('announce', async (ctx) => {
         await saveUser(user);
         await ctx.reply(
             "📢 *Yangi e'lon yaratish*\n\n" +
-            "1/5 — 📸 Rasm yuboring\n" +
-            "(yoki /skip — matnli e'lon uchun)\n\n" +
+            "1/5 — 📸 Media yuboring (rasm, video, GIF yoki hujjat)\n" +
+            "(yoki /skip — matnsiz e'lon uchun)\n\n" +
             "Bekor qilish: /cancel",
             { parse_mode: 'Markdown' }
         );
