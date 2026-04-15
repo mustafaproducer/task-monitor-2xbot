@@ -70,12 +70,25 @@ async function getDBUser(ctx) {
     }
 }
 
+const USER_COLUMNS = [
+    'name', 'username', 'full_name', 'phone', 'is_paid', 'step',
+    'pending_product_id', 'paid_products', 'draft_announcement_id'
+];
+
 async function saveUser(user) {
+    const fields = {};
+    for (const k of USER_COLUMNS) {
+        if (user[k] !== undefined) fields[k] = user[k];
+    }
     try {
-        const { error } = await supabase.from('users').update(user).eq('id', user.id);
-        if (error) console.error(`[saveUser] Error:`, error.message);
+        const { error } = await supabase.from('users').update(fields).eq('id', user.id);
+        if (error) {
+            console.error(`[saveUser] Error for ${user.id}:`, error.message, '| fields:', Object.keys(fields).join(','));
+            throw error;
+        }
     } catch (err) {
         console.error("saveUser Error:", err.message);
+        throw err;
     }
 }
 
@@ -745,6 +758,20 @@ bot.on('message', async (ctx) => {
 
     if (ctx.chat.type !== 'private') return;
     const user = await getDBUser(ctx);
+
+    // Onboarding: contact — accept whenever phone is missing, regardless of step.
+    // Fixes the case where saveUser silently failed and step never advanced to ASK_PHONE.
+    if (ctx.message.contact && !user.phone) {
+        user.phone = ctx.message.contact.phone_number;
+        if (!user.full_name) user.full_name = ctx.from.first_name || "Do'st";
+        user.step = 'MAIN_MENU';
+        await saveUser(user);
+        return ctx.reply(
+            `✅ Ro'yxatdan o'tish yakunlandi!\n\n` +
+            `Endi *🛍 Mahsulotlar* tugmasini bosib mahsulotlarimiz bilan tanishing, yoki *🎁 Bepul namunalar* olib ko'ring!`,
+            { parse_mode: 'Markdown', ...mainMenu }
+        );
+    }
 
     // Onboarding: name
     if (user.step === 'ASK_NAME' && ctx.message.text) {
