@@ -75,14 +75,31 @@ const USER_COLUMNS = [
     'pending_product_id', 'paid_products', 'draft_announcement_id'
 ];
 
+// Columns that the live Supabase schema rejects — learned at runtime from the
+// first failing update, then skipped on every subsequent save. Without this,
+// every saveUser would fail its batch update and fall back to N sequential
+// per-field retries (6–7s total round-trip).
+const MISSING_USER_COLUMNS = new Set();
+
+function stripMissing(patch) {
+    const out = {};
+    for (const [k, v] of Object.entries(patch)) {
+        if (!MISSING_USER_COLUMNS.has(k)) out[k] = v;
+    }
+    return out;
+}
+
 async function updateUserFields(id, patch) {
-    const { error } = await supabase.from('users').update(patch).eq('id', id);
-    if (error) {
-        console.error(`[updateUserFields] ${id} fields=${Object.keys(patch).join(',')} err=${error.message}`);
-        // Retry once with each field individually so one bad column doesn't drop the rest.
-        for (const [k, v] of Object.entries(patch)) {
-            const { error: e2 } = await supabase.from('users').update({ [k]: v }).eq('id', id);
-            if (e2) console.error(`[updateUserFields] skip ${k}: ${e2.message}`);
+    const cleaned = stripMissing(patch);
+    if (Object.keys(cleaned).length === 0) return;
+    const { error } = await supabase.from('users').update(cleaned).eq('id', id);
+    if (!error) return;
+    console.error(`[updateUserFields] batch failed: ${error.message}. Falling back per-field.`);
+    for (const [k, v] of Object.entries(cleaned)) {
+        const { error: e2 } = await supabase.from('users').update({ [k]: v }).eq('id', id);
+        if (e2) {
+            console.error(`[updateUserFields] dropping column "${k}": ${e2.message}`);
+            MISSING_USER_COLUMNS.add(k);
         }
     }
 }
