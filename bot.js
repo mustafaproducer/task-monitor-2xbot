@@ -900,16 +900,174 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/dashboard', checkAuth, async (req, res) => {
-    const { data: users } = await supabase.from('users').select('*').order('joined_at', { ascending: false }).limit(100);
-    const { count: total } = await supabase.from('users').select('*', { count: 'exact', head: true });
-    const { count: paid } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_paid', true);
+    try {
+        const [usersRes, annRes] = await Promise.all([
+            supabase.from('users').select('*'),
+            supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(20)
+        ]);
+        const users = usersRes.data || [];
+        const announcements = annRes.data || [];
 
-    const rows = users.map(u => {
+        // KPIs
+        const total = users.length;
+        const paid = users.filter(u => u.is_paid).length;
+        const conversion = total > 0 ? ((paid / total) * 100).toFixed(1) : '0.0';
+
+        // Revenue + sales-by-product
+        let revenue = 0;
+        const salesByProduct = {};
+        users.forEach(u => {
+            if (Array.isArray(u.paid_products)) {
+                u.paid_products.forEach(pid => {
+                    const p = getProduct(pid);
+                    if (p) {
+                        revenue += p.price;
+                        salesByProduct[pid] = (salesByProduct[pid] || 0) + 1;
+                    }
+                });
+            }
+        });
+
+        // Funnel
+        const funnel = {
+            started: total,
+            named: users.filter(u => u.full_name).length,
+            phoned: users.filter(u => u.phone).length,
+            attempted: users.filter(u => u.pending_product_id || u.is_paid).length,
+            paid: paid
+        };
+
+        // Daily signups — last 30 days
+        const today = new Date();
+        const days = [];
+        const counts = [];
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            days.push(key.slice(5));
+            counts.push(users.filter(u => u.joined_at && u.joined_at.startsWith(key)).length);
+        }
+
+        // Sales by product name
+        const productSales = Object.entries(salesByProduct).map(([pid, count]) => {
+            const p = getProduct(pid);
+            return { name: p ? p.title : pid, count };
+        });
+        if (productSales.length === 0) productSales.push({ name: 'Hozircha sotuvlar yo\'q', count: 1 });
+
+        // Announcement history rows
+        const annRows = announcements.map(a => {
+            const caption = (a.caption || '').replace(/[<>]/g, '').slice(0, 60);
+            const target = `${a.target}${a.target_product_id ? ' (' + a.target_product_id + ')' : ''}`;
+            const badge = a.status === 'sent' ? '#2ecc71' : (a.status === 'cancelled' ? '#e74c3c' : '#888');
+            return `<tr><td>${a.id}</td><td><span style="background:${badge};padding:3px 8px;border-radius:4px;font-size:11px;color:#000;">${a.status}</span></td><td>${target}</td><td>${caption}</td><td>${a.sent_count || 0} / ${a.failed_count || 0}</td><td>${a.created_at ? new Date(a.created_at).toLocaleString() : '-'}</td></tr>`;
+        }).join('') || `<tr><td colspan="6" style="text-align:center;color:#666;padding:30px;">Hali e'lonlar yo'q</td></tr>`;
+
+        res.send(`<!DOCTYPE html><html><head><title>2xPREMIUM Analytics</title><meta name="viewport" content="width=device-width, initial-scale=1"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><style>
+*{box-sizing:border-box}
+body{background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:30px;margin:0}
+h1{color:#D4AF37;margin:0 0 8px 0;font-size:28px}
+.subtitle{color:#666;font-size:13px;margin-bottom:30px}
+h2{color:#D4AF37;font-size:15px;margin:0 0 18px 0;text-transform:uppercase;letter-spacing:1px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:30px}
+.kpi{background:linear-gradient(135deg,#111 0%,#0a0a0a 100%);padding:22px;border-radius:14px;border:1px solid rgba(212,175,55,0.2)}
+.kpi .label{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1.5px}
+.kpi .value{font-size:30px;font-weight:800;margin-top:10px;color:#fff}
+.kpi .value.gold{color:#D4AF37}
+.charts{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-bottom:30px}
+.chart-card{background:#0c0c0c;padding:22px;border-radius:14px;border:1px solid #1a1a1a}
+.chart-card.full{grid-column:1 / -1}
+table{width:100%;border-collapse:collapse;background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #1a1a1a}
+th,td{padding:14px 16px;border-bottom:1px solid #1a1a1a;text-align:left;font-size:13px}
+th{background:#111;color:#D4AF37;font-size:10px;text-transform:uppercase;letter-spacing:1.5px}
+tr:last-child td{border-bottom:none}
+.links{margin-top:24px;display:flex;gap:14px;flex-wrap:wrap}
+.links a{color:#D4AF37;text-decoration:none;padding:10px 18px;background:#111;border-radius:8px;border:1px solid #222;font-size:13px}
+.links a:hover{background:#1a1a1a}
+canvas{max-height:260px}
+@media (max-width:768px){.charts{grid-template-columns:1fr}body{padding:16px}}
+</style></head><body>
+
+<h1>📊 2xPREMIUM Analytics</h1>
+<div class="subtitle">Yangilangan: ${new Date().toLocaleString()}</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="label">👥 Jami foydalanuvchilar</div><div class="value">${total}</div></div>
+  <div class="kpi"><div class="label">✅ To'laganlar</div><div class="value gold">${paid}</div></div>
+  <div class="kpi"><div class="label">📈 Konversiya</div><div class="value">${conversion}%</div></div>
+  <div class="kpi"><div class="label">💰 Umumiy daromad</div><div class="value gold">${revenue.toLocaleString()} so'm</div></div>
+</div>
+
+<div class="charts">
+  <div class="chart-card"><h2>📈 Kunlik ro'yxatdan o'tish (30 kun)</h2><canvas id="signupsChart"></canvas></div>
+  <div class="chart-card"><h2>🎯 Konversiya voronkasi</h2><canvas id="funnelChart"></canvas></div>
+</div>
+
+<div class="chart-card full" style="margin-bottom:30px"><h2>🛍 Mahsulotlar bo'yicha sotuvlar</h2><canvas id="salesChart" style="max-height:240px"></canvas></div>
+
+<h2 style="margin-top:0">📢 So'nggi e'lonlar</h2>
+<table>
+  <thead><tr><th>ID</th><th>Status</th><th>Maqsad</th><th>Matn</th><th>Yub./Xato</th><th>Sana</th></tr></thead>
+  <tbody>${annRows}</tbody>
+</table>
+
+<div class="links">
+  <a href="/users">👥 Foydalanuvchilar ro'yxati</a>
+  <a href="/login" onclick="document.cookie='auth=;max-age=0';return true">🚪 Chiqish</a>
+</div>
+
+<script>
+Chart.defaults.color='#888';
+Chart.defaults.borderColor='#1a1a1a';
+
+new Chart(document.getElementById('signupsChart'),{
+  type:'line',
+  data:{
+    labels:${JSON.stringify(days)},
+    datasets:[{label:'Yangi',data:${JSON.stringify(counts)},borderColor:'#D4AF37',backgroundColor:'rgba(212,175,55,0.12)',fill:true,tension:0.35,pointRadius:2,borderWidth:2}]
+  },
+  options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}
+});
+
+new Chart(document.getElementById('funnelChart'),{
+  type:'bar',
+  data:{
+    labels:['Boshlandi','Ism','Telefon','Urindi','To\\'ladi'],
+    datasets:[{data:[${funnel.started},${funnel.named},${funnel.phoned},${funnel.attempted},${funnel.paid}],backgroundColor:['#333','#555','#777','#B8941F','#D4AF37'],borderRadius:6}]
+  },
+  options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}
+});
+
+new Chart(document.getElementById('salesChart'),{
+  type:'doughnut',
+  data:{
+    labels:${JSON.stringify(productSales.map(s => s.name))},
+    datasets:[{data:${JSON.stringify(productSales.map(s => s.count))},backgroundColor:['#D4AF37','#8B7500','#666','#444'],borderWidth:0}]
+  },
+  options:{plugins:{legend:{position:'right',labels:{color:'#888'}}}}
+});
+</script>
+</body></html>`);
+    } catch (e) {
+        console.error('Dashboard error:', e);
+        res.status(500).send(`<pre style="color:#fff;background:#000;padding:20px;">Dashboard xatosi: ${e.message}</pre>`);
+    }
+});
+
+app.get('/users', checkAuth, async (req, res) => {
+    const { data: users } = await supabase
+        .from('users')
+        .select('*')
+        .order('joined_at', { ascending: false })
+        .limit(300);
+    const rows = (users || []).map(u => {
         const prods = Array.isArray(u.paid_products) && u.paid_products.length > 0 ? u.paid_products.join(', ') : '-';
-        return `<tr><td>${u.id}</td><td>${u.full_name || u.name}</td><td>${u.username ? '@' + u.username : '-'}</td><td>${u.phone || '-'}</td><td>${u.is_paid ? 'HA' : 'YOQ'}</td><td>${prods}</td><td>${u.joined_at ? new Date(u.joined_at).toLocaleString() : '-'}</td></tr>`;
+        const name = (u.full_name || u.name || '-').replace(/[<>]/g, '');
+        const username = u.username ? '@' + u.username.replace(/[<>]/g, '') : '-';
+        return `<tr><td>${u.id}</td><td>${name}</td><td>${username}</td><td>${u.phone || '-'}</td><td>${u.is_paid ? '✅' : '⏳'}</td><td>${prods}</td><td>${u.joined_at ? new Date(u.joined_at).toLocaleString() : '-'}</td></tr>`;
     }).join('');
-
-    res.send(`<!DOCTYPE html><html><head><title>Dashboard</title><style>body{background:#050505;color:#fff;font-family:sans-serif;padding:40px;}table{width:100%;border-collapse:collapse;}th,td{padding:15px;border-bottom:1px solid #333;text-align:left;}.stat{display:flex;gap:20px;margin-bottom:40px;}.card{background:#111;padding:20px;border-radius:10px;border:1px solid #D4AF37;flex:1;}</style></head><body><h1>2xPREMIUM — SOTUVLAR</h1><div class="stat"><div class="card"><h3>Jami</h3><h2>${total}</h2></div><div class="card"><h3>To'laganlar</h3><h2>${paid}</h2></div></div><table><thead><tr><th>ID</th><th>Ism</th><th>User</th><th>Raqam</th><th>To'lov</th><th>Mahsulotlar</th><th>Sana</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    res.send(`<!DOCTYPE html><html><head><title>Users | 2xPREMIUM</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#050505;color:#fff;font-family:-apple-system,sans-serif;padding:30px;margin:0}h1{color:#D4AF37}table{width:100%;border-collapse:collapse;background:#0c0c0c;border-radius:14px;overflow:hidden;border:1px solid #1a1a1a}th,td{padding:12px 16px;border-bottom:1px solid #1a1a1a;text-align:left;font-size:13px}th{background:#111;color:#D4AF37;font-size:10px;text-transform:uppercase;letter-spacing:1.5px}a{color:#D4AF37;text-decoration:none}</style></head><body><h1>👥 Foydalanuvchilar</h1><p><a href="/dashboard">← Dashboard'ga qaytish</a></p><table><thead><tr><th>ID</th><th>Ism</th><th>User</th><th>Raqam</th><th>To'lov</th><th>Mahsulotlar</th><th>Sana</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
 });
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
