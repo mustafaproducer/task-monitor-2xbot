@@ -1219,18 +1219,58 @@ app.get('/users', checkAuth, async (req, res) => {
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
+// --- Track channel joins (Phase 2 analytics) ---
+// Logs a `channel_joined` event when an approved user joins the private
+// product channel via their one-time invite link. Requires the bot to be
+// an admin of the channel AND `chat_member` in allowed_updates below.
+bot.on('chat_member', async (ctx) => {
+    try {
+        const upd = ctx.update.chat_member;
+        const chat = upd.chat;
+        const next = upd.new_chat_member;
+        const prev = upd.old_chat_member;
+
+        const joinedNow =
+            ['member', 'administrator', 'creator'].includes(next.status) &&
+            ['left', 'kicked', 'restricted'].includes(prev.status);
+        if (!joinedNow) return;
+
+        const products = getActiveProducts();
+        const product = products.find(
+            (p) => String(p.channelId) === String(chat.id)
+        );
+        if (!product) return;
+
+        await supabase.from('user_events').insert({
+            user_id: String(next.user.id),
+            event_type: 'channel_joined',
+            product_id: product.id,
+            metadata: {
+                chat_id: chat.id,
+                chat_title: chat.title,
+                username: next.user.username || null,
+            },
+        });
+    } catch (err) {
+        console.error('chat_member handler failed:', err);
+    }
+});
+
 // --- Launch ---
 const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL;
+const ALLOWED_UPDATES = ['message', 'callback_query', 'chat_member'];
 
 if (WEBHOOK_URL) {
-    bot.telegram.setWebhook(`${WEBHOOK_URL}/bot`).then(() => {
-        console.log(`✅ Webhook set: ${WEBHOOK_URL}/bot`);
-    });
+    bot.telegram
+        .setWebhook(`${WEBHOOK_URL}/bot`, { allowed_updates: ALLOWED_UPDATES })
+        .then(() => {
+            console.log(`✅ Webhook set: ${WEBHOOK_URL}/bot`);
+        });
     app.use(bot.webhookCallback('/bot'));
     app.listen(PORT, () => console.log(`Server on port ${PORT}`));
 } else {
     app.listen(PORT, () => console.log(`Server on port ${PORT}`));
-    bot.launch();
+    bot.launch({ allowedUpdates: ALLOWED_UPDATES });
 }
 
 process.once('SIGINT', () => { try { bot.stop('SIGINT'); } catch (e) {} });
