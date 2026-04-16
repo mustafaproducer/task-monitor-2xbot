@@ -1311,20 +1311,18 @@ bot.on('chat_member', async (ctx) => {
 const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL;
 const ALLOWED_UPDATES = ['message', 'callback_query', 'chat_member'];
 
-const BOT_DESCRIPTION = `2X Academy Bot — Instagram sotuvlaringizni 2 barobarga oshiring
+const BOT_DESCRIPTION = `2X Academy Bot — Instagram sotuvlaringizni 2 barobarga oshiring!
 
-Har kuni "nima g'oya qilsam ekan?" deb o'tirasizmi? Biz bu muammoni Tayyor AI promptlar bilan hal qildik.
+"Nima g'oya qilsam ekan?" — Biz bu muammoni Tayyor AI promptlar bilan hal qildik.
 
-Siz nima olasiz:
+🧠 5 soniyada g'oya — AI bugungi postni taklif qiladi
+💸 Sotuvga olib keladigan kontent — layk emas, xaridorlar
+⚡ 5 soat → 5 daqiqa — Vaqtingizni tejang
+👑 Ekspert imiji — Auditoriya sizni lider deb biladi
 
-🧠 5 soniyada g'oya — AI sizga bugungi postni darhol taklif qiladi
-💸 Sotuvga olib keladigan kontent — Faqat layk emas, xaridorlar
-⚡ 5 soat → 5 daqiqa — Vaqtingizni oilangizga sarflang
-👑 Ekspert imiji — Auditoriyangiz sizni lider sifatida ko'radi
+"Prompt emas — sotuvlarni avtomatlashtiruvchi tizim"
 
-"Prompt emas — kunlik sotuvlaringizni avtomatlashtiruvchi tizim"
-
-👇 Bepul promptlarni sinab ko'ring`;
+👇 Bepul sinab ko'ring — Start bosing!`;
 
 const BOT_SHORT_DESCRIPTION = '🚀 Instagram sotuvlaringizni 2x oshiruvchi AI promptlar tizimi. Bepul sinab ko\'ring!';
 
