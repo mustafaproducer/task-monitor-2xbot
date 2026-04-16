@@ -1266,6 +1266,10 @@ app.get('/users', checkAuth, async (req, res) => {
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
+app.get('/health', (req, res) => res.send('ok'));
+
+app.use((req, res) => res.redirect('/dashboard'));
+
 // --- Track channel joins (Phase 2 analytics) ---
 // Logs a `channel_joined` event when an approved user joins the private
 // product channel via their one-time invite link. Requires the bot to be
