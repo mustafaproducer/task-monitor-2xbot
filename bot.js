@@ -1322,7 +1322,7 @@ Har kuni "nima g'oya qilsam ekan?" deb o'tirasizmi? Biz bu muammoni Tayyor AI pr
 
 Prompt emas — sotuvlaringizni avtomatlashtiruvchi tizim
 
-👇 Bepul promptlarni sinab ko'ring!`;
+👇 Bepul promptlarni sinab ko'ring`;
 
 const BOT_SHORT_DESCRIPTION = '🚀 Instagram sotuvlaringizni 2x oshiruvchi AI promptlar tizimi. Bepul sinab ko\'ring!';
 
