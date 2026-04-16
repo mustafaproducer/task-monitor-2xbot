@@ -1311,17 +1311,45 @@ bot.on('chat_member', async (ctx) => {
 const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL;
 const ALLOWED_UPDATES = ['message', 'callback_query', 'chat_member'];
 
+const BOT_DESCRIPTION = `2X Academy Bot — Instagram sotuvlaringizni 2 barobarga oshiring
+
+Har kuni "nima g'oya qilsam ekan?" deb o'tirasizmi? Biz bu muammoni Tayyor AI promptlar bilan hal qildik.
+
+Siz nima olasiz:
+
+🧠 5 soniyada g'oya — AI sizga bugungi postni darhol taklif qiladi
+💸 Sotuvga olib keladigan kontent — Faqat layk emas, xaridorlar
+⚡ 5 soat → 5 daqiqa — Vaqtingizni oilangizga sarflang
+👑 Ekspert imiji — Auditoriyangiz sizni lider sifatida ko'radi
+
+"Prompt emas — kunlik sotuvlaringizni avtomatlashtiruvchi tizim"
+
+👇 Bepul promptlarni sinab ko'ring`;
+
+const BOT_SHORT_DESCRIPTION = '🚀 Instagram sotuvlaringizni 2x oshiruvchi AI promptlar tizimi. Bepul sinab ko\'ring!';
+
+async function setBotProfile() {
+    try {
+        await bot.telegram.setMyDescription(BOT_DESCRIPTION);
+        await bot.telegram.setMyShortDescription(BOT_SHORT_DESCRIPTION);
+        console.log('✅ Bot description & short description set');
+    } catch (err) {
+        console.error('setBotProfile error:', err.message);
+    }
+}
+
 if (WEBHOOK_URL) {
     bot.telegram
         .setWebhook(`${WEBHOOK_URL}/bot`, { allowed_updates: ALLOWED_UPDATES })
         .then(() => {
             console.log(`✅ Webhook set: ${WEBHOOK_URL}/bot`);
+            setBotProfile();
         });
     app.use(bot.webhookCallback('/bot'));
     app.listen(PORT, () => console.log(`Server on port ${PORT}`));
 } else {
     app.listen(PORT, () => console.log(`Server on port ${PORT}`));
-    bot.launch({ allowedUpdates: ALLOWED_UPDATES });
+    bot.launch({ allowedUpdates: ALLOWED_UPDATES }).then(() => setBotProfile());
 }
 
 process.once('SIGINT', () => { try { bot.stop('SIGINT'); } catch (e) {} });
