@@ -1268,8 +1268,6 @@ app.get('/', (req, res) => res.redirect('/dashboard'));
 
 app.get('/health', (req, res) => res.send('ok'));
 
-app.use((req, res) => res.redirect('/dashboard'));
-
 // --- Track channel joins (Phase 2 analytics) ---
 // Logs a `channel_joined` event when an approved user joins the private
 // product channel via their one-time invite link. Requires the bot to be
@@ -1344,6 +1342,7 @@ if (WEBHOOK_URL) {
             setBotProfile();
         });
     app.use(bot.webhookCallback('/bot'));
+    app.use((req, res) => res.redirect('/dashboard'));
     app.listen(PORT, () => console.log(`Server on port ${PORT}`));
 } else {
     app.listen(PORT, () => console.log(`Server on port ${PORT}`));
