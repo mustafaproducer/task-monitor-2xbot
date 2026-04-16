@@ -6,14 +6,14 @@ const products = {
         id: 'prompt',
         active: true,
         title: "57 ta Premium Promptlar",
-        emoji: "🎁",
+        emoji: "💎",
         price: 599000,
         priceText: "599,000 so'm",
         channelId: process.env.CHANNEL_ID || '-1002947739734',
         poster: 'poster.png',
         shortDescription: "Instagram kontent yaratuvchilar uchun 57 ta eng sara Premium Promptlar to'plami.",
         fullDescription:
-            "🎁 *57 ta Premium Promptlar to'plami*\n\n" +
+            "💎 *57 ta Premium Promptlar to'plami*\n\n" +
             "📱 Instagram'da kontent qiluvchilar uchun maxsus tayyorlangan\n" +
             "✨ Kontent ishlab chiqarishni 2x tezlashtiradi\n" +
             "🎯 Professional natijalar uchun sinab ko'rilgan\n" +

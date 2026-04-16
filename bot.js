@@ -38,8 +38,8 @@ const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
 // --- Main Menu Keyboard ---
 const mainMenu = Markup.keyboard([
-    ['🛍 Mahsulotlar', '👤 Profilim'],
-    ['🎁 Bepul namunalar', '📞 Admin']
+    ['📦 Mahsulotlar', '👤 Profilim'],
+    ['🎁 Bepul Promptlar', '📞 Admin']
 ]).resize();
 
 // --- User Helpers ---
@@ -350,9 +350,7 @@ bot.start(async (ctx) => {
     } catch (e) { console.log('VideoNote skip'); }
 
     await ctx.reply(
-        "👋 Assalomu alaykum va 2xPREMIUM botiga xush kelibsiz!\n\n" +
-        "Bu yerda siz Instagram kontent yaratuvchilari uchun tayyorlangan Premium mahsulotlarni qo'lga kiritishingiz mumkin.\n\n" +
-        "👇 Iltimos, Ismingizni kiriting (Masalan: Alisher) 🔥",
+        "Assalom alaykum 2X BOTGA xush kelibsiz! Bu yerda AI ni to'g'ri boshqarish va kontentlar qiluvchilar uchun maxsus mahsulotlarimizni sotib olishingiz mumkin\n\nIltimos, Ismingizni kiriting 👇 (Masalan: ALI)",
         Markup.removeKeyboard()
     );
 });
@@ -496,7 +494,7 @@ bot.use(async (ctx, next) => {
 });
 
 // ========== Menu Button Handlers ==========
-bot.hears('🛍 Mahsulotlar', async (ctx) => {
+bot.hears('📦 Mahsulotlar', async (ctx) => {
     if (ctx.chat.type !== 'private') return;
     const user = await getDBUser(ctx);
     if (!user.full_name || !user.phone) {
@@ -529,15 +527,15 @@ bot.hears('👤 Profilim', async (ctx) => {
 
     await ctx.reply(
         `👤 *Profilingiz*\n\n` +
-        `📛 Ism: ${user.full_name}\n` +
+        `👤 Ism: ${user.full_name}\n` +
         `📞 Raqam: ${user.phone}\n` +
         `🆔 ID: \`${user.id}\`\n\n` +
-        `🛍 *Sotib olganlaringiz:*\n${paidList}`,
+        `📦 *Sotib olganlaringiz:*\n${paidList}`,
         { parse_mode: 'Markdown' }
     );
 });
 
-bot.hears('🎁 Bepul namunalar', async (ctx) => {
+bot.hears('🎁 Bepul Promptlar', async (ctx) => {
     if (ctx.chat.type !== 'private') return;
     const user = await getDBUser(ctx);
     if (!user.full_name || !user.phone) {
@@ -549,7 +547,7 @@ bot.hears('🎁 Bepul namunalar', async (ctx) => {
         await ctx.replyWithDocument({ source: 'freebies/22_Kontent_matritsa_Mutaxassisi.pdf' });
         await ctx.replyWithDocument({ source: 'freebies/53_VIP_taklif_Mutaxassisi.pdf' });
         await ctx.reply(
-            "✨ Bularni yoqtirdingizmi? 57 ta to'liq Premium Promptlar to'plamini olish uchun *🛍 Mahsulotlar* tugmasini bosing!",
+            "✨ Bepul promptlarni sinab ta'tib ko'ring, natijasi barcha to'plamni olishga majbur qiladi!\n\n*📦 Mahsulotlar* tugmasini bosing 👇",
             { parse_mode: 'Markdown' }
         );
     } catch (e) {
@@ -788,7 +786,7 @@ bot.on('message', async (ctx) => {
         await saveUser(user);
         return ctx.reply(
             `✅ Ro'yxatdan o'tish yakunlandi!\n\n` +
-            `Endi *🛍 Mahsulotlar* tugmasini bosib mahsulotlarimiz bilan tanishing, yoki *🎁 Bepul namunalar* olib ko'ring!`,
+            `Endi *📦 Mahsulotlar* tugmasini bosib mahsulotlarimiz bilan tanishing, yoki *🎁 Bepul Promptlar* olib ko'ring!`,
             { parse_mode: 'Markdown', ...mainMenu }
         );
     }
@@ -811,7 +809,7 @@ bot.on('message', async (ctx) => {
         await saveUser(user);
         return ctx.reply(
             `✅ Ro'yxatdan o'tish yakunlandi!\n\n` +
-            `Endi *🛍 Mahsulotlar* tugmasini bosib mahsulotlarimiz bilan tanishing, yoki *🎁 Bepul namunalar* olib ko'ring!`,
+            `Endi *📦 Mahsulotlar* tugmasini bosib mahsulotlarimiz bilan tanishing, yoki *🎁 Bepul Promptlar* olib ko'ring!`,
             { parse_mode: 'Markdown', ...mainMenu }
         );
     }
